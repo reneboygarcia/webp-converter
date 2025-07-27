@@ -310,6 +310,33 @@ class WebPConverterCLI:
                     )
                 )
 
+    def _parse_inputs(self, input_path):
+        """Parse comma-separated input string into a list of paths."""
+        return [f.strip() for f in input_path.split(",") if f.strip()]
+
+    def _validate_inputs_exist(self, inputs):
+        """Return True if all given input paths exist."""
+        return all(os.path.exists(p) for p in inputs)
+
+    def _get_image_files_from_dir(self, directory):
+        """Recursively yield image file paths from a directory."""
+        for root, _, files in os.walk(directory):
+            for file in files:
+                if file.lower().endswith(tuple(Image.registered_extensions().keys())):
+                    yield os.path.join(root, file)
+
+    def _get_image_files(self, inputs, output_dir):
+        """Yield (input_file, output_file) tuples for all valid images in given inputs."""
+        for input_path in inputs:
+            if os.path.isdir(input_path):
+                for file_path in self._get_image_files_from_dir(input_path):
+                    base = os.path.splitext(os.path.basename(file_path))[0]
+                    output_path = os.path.join(output_dir, base + '.webp')
+                    yield (file_path, output_path)
+            else:
+                base = os.path.splitext(os.path.basename(input_path))[0]
+                output_path = os.path.join(output_dir, base + '.webp')
+                yield (input_path, output_path)
     def show_info(self):
         self.console.print(
             Panel.fit(
