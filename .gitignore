@@ -1,0 +1,20 @@
+# Virtual environment
+venv
+
+# Build files
+__pycache__
+webp_converter.egg-info
+webp_converter-0.1.0.dist-info
+build
+dist
+
+# Temporary files
+*.webp
+
+# IDE files
+.idea
+.vscode
+
+# Log files
+*.log
+
