@@ -1,3 +1,9 @@
+
+<p align="left">
+  <img src="docs/banner.png" alt="WebP Converter Banner" style="max-width: 100%;"/>
+</p>
+
+
 # WebP Converter CLI
 
 A modern, interactive command-line tool to batch convert images to the WebP format with a beautiful retro/modern terminal UI.
