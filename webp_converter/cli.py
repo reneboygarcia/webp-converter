@@ -1,13 +1,18 @@
+import os
+os.environ["OMP_DISPLAY_ENV"] = "FALSE"
 import sys
 import os
+import shutil
 from pathlib import Path
 from PIL import Image
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from tqdm import tqdm
 import questionary
 from questionary import Style
+from .ui_helpers import show_success, show_error, show_warning, show_info, ask_overwrite
+from .image_utils import save_image_with_transparency
+from .bg_removal import remove_background
 
 # ANSI color codes for retro terminal style
 CYAN = "\033[96m"
@@ -18,6 +23,18 @@ RED = "\033[91m"
 RESET = "\033[0m"
 BOLD = "\033[1m"
 
+RETRO_ASCII = """
+
+██╗    ██╗███████╗██████╗ ██████╗        ██████╗ ██████╗ ███╗   ██╗██╗   ██╗███████╗██████╗ ████████╗
+██║    ██║██╔════╝██╔══██╗██╔══██╗      ██╔════╝██╔═══██╗████╗  ██║██║   ██║██╔════╝██╔══██╗╚══██╔══╝
+██║ █╗ ██║█████╗  ██████╔╝██████╔╝█████╗██║     ██║   ██║██╔██╗ ██║██║   ██║█████╗  ██████╔╝   ██║   
+██║███╗██║██╔══╝  ██╔══██╗██╔═══╝ ╚════╝██║     ██║   ██║██║╚██╗██║╚██╗ ██╔╝██╔══╝  ██╔══██╗   ██║   
+╚███╔███╔╝███████╗██████╔╝██║           ╚██████╗╚██████╔╝██║ ╚████║ ╚████╔╝ ███████╗██║  ██║   ██║   
+ ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝            ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝   ╚═╝   
+                                                                                                     
+"""
+
+RETRO_BORDER = f"{CYAN}{BOLD}+{'-'*40}+{RESET}"
 
 def retro_print(msg, color=CYAN, border=True):
     if border:
@@ -32,15 +49,12 @@ def retro_print(msg, color=CYAN, border=True):
 def get_downloads_dir() -> str:
     """Return the user's Downloads directory in a cross-platform way."""
     if os.name == "nt":
-        import ctypes, sys
+        import ctypes
         from pathlib import Path
-
         try:
-            # Windows 7+ Downloads folder
-            from ctypes import windll, wintypes, byref
-
-            CSIDL_PERSONAL = 0x0005  # My Documents
-            SHGFP_TYPE_CURRENT = 0  # Get current, not default value
+            from ctypes import windll, wintypes
+            CSIDL_PERSONAL = 0x0005
+            SHGFP_TYPE_CURRENT = 0
             buf = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
             windll.shell32.SHGetFolderPathW(
                 None, CSIDL_PERSONAL, None, SHGFP_TYPE_CURRENT, buf
@@ -49,36 +63,40 @@ def get_downloads_dir() -> str:
             downloads = doc_path.parent / "Downloads"
             return str(downloads)
         except Exception:
-            # fallback
             return str(Path.home() / "Downloads")
     else:
         return os.path.join(os.path.expanduser("~"), "Downloads")
 
 
 from .ui_helpers import show_success, show_error, show_warning, show_info, ask_overwrite
+from .image_utils import save_image_with_transparency
 
 
-def convert_to_webp(
-    input_path: str, output_path: str = None, force: bool = False, quality: int = 80
+def convert_to_webp_core(
+    input_path: str,
+    output_path: str,
+    quality: int = 80,
+    remove_bg: bool = False,
+    lossless: bool = False,
 ) -> bool:
     """
-    Convert an image to WebP format.
+    Core image-to-WebP conversion logic. No user interaction or file existence checks.
     Returns True on success, False on error.
     """
-    if not os.path.isfile(input_path):
-        show_error(f"Input file '{input_path}' does not exist.")
-        return False
     try:
+        from .bg_removal import remove_background
         with Image.open(input_path) as img:
-            img = img.convert("RGBA") if img.mode in ("P", "LA") else img.convert("RGB")
-            if not output_path:
-                base = os.path.splitext(os.path.basename(input_path))[0]
-                output_path = os.path.join(get_downloads_dir(), base + ".webp")
-            if os.path.exists(output_path) and not force:
-                if not ask_overwrite(os.path.basename(output_path)):
-                    show_info("Conversion skipped by user.", title="Skipped")
-                    return False
-            img.save(output_path, "WEBP", quality=quality)
+            img = img.convert("RGBA")
+            def has_transparency(image):
+                if image.mode in ("RGBA", "LA"):
+                    alpha = image.getchannel("A")
+                    return alpha.getextrema()[0] < 255
+                return False
+            if remove_bg and not has_transparency(img):
+                img = remove_background(img)
+            elif remove_bg and has_transparency(img):
+                show_info("Image already has transparency. Skipping background removal.", title="Background Removal")
+            save_image_with_transparency(img, output_path, format="WEBP", lossless=lossless, quality=quality)
             original_size = os.path.getsize(input_path)
             new_size = os.path.getsize(output_path)
             show_success(
@@ -93,9 +111,39 @@ def convert_to_webp(
         show_error(str(e), title="Conversion Error")
         return False
 
+def convert_to_webp(
+    input_path: str,
+    output_path: str = None,
+    force: bool = False,
+    quality: int = 80,
+    remove_bg: bool = False,
+    lossless: bool = False,
+) -> bool:
+    """
+    Wrapper for image-to-WebP conversion. Handles file existence, output path, and user interaction.
+    Returns True on success, False on error.
+    """
+    if not os.path.isfile(input_path):
+        show_error(f"Input file '{input_path}' does not exist.")
+        return False
+    if not output_path:
+        base = os.path.splitext(os.path.basename(input_path))[0]
+        output_path = os.path.join(get_downloads_dir(), base + ".webp")
+    if os.path.exists(output_path) and not force:
+        if not ask_overwrite(os.path.basename(output_path)):
+            show_info("Conversion skipped by user.", title="Skipped")
+            return False
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    return convert_to_webp_core(
+        input_path,
+        output_path,
+        quality=quality,
+        remove_bg=remove_bg,
+        lossless=lossless,
+    )
+
 
 def retro_input(prompt_msg, default=None):
-    # Beautiful retro border and prompt
     border_color = CYAN
     arrow_color = MAGENTA
     prompt_color = YELLOW
@@ -108,7 +156,6 @@ def retro_input(prompt_msg, default=None):
             f"{block}{' ' * 3}{arrow_color}▶{RESET} Press Enter for default: {GREEN}{default}{RESET}"
         )
     print(f"{border}")
-    # Retro input arrow
     inp = input(f"{arrow_color}{BOLD}➤ {RESET}")
     return inp.strip() if inp.strip() else (default if default is not None else None)
 
@@ -132,7 +179,6 @@ def prompt_for_directory(default_dir):
 
 
 def _create_progress_bar(total_images):
-    """Create a tqdm progress bar for image conversion."""
     return tqdm(
         total=total_images,
         unit="img",
@@ -143,27 +189,15 @@ def _create_progress_bar(total_images):
 
 CUSTOM_STYLE = Style(
     [
-        ("qmark", "fg:#00d7af bold"),  # Question mark
-        ("question", "bold"),  # Question text
-        ("answer", "fg:#ffaf00 bold"),  # User's answer
-        ("pointer", "fg:#00d7af bold"),  # Pointer arrow
-        ("highlighted", "fg:#00d7af bold"),  # Highlighted choice
-        ("selected", "fg:#5f87ff bold"),  # Selected choice
-        ("instruction", "fg:#888888 italic"),  # Instruction text
+        ("qmark", "fg:#00d7af bold"),
+        ("question", "bold"),
+        ("answer", "fg:#ffaf00 bold"),
+        ("pointer", "fg:#00d7af bold"),
+        ("highlighted", "fg:#00d7af bold"),
+        ("selected", "fg:#5f87ff bold"),
+        ("instruction", "fg:#888888 italic"),
     ]
 )
-
-RETRO_ASCII = """
-
-██╗    ██╗███████╗██████╗ ██████╗        ██████╗ ██████╗ ███╗   ██╗██╗   ██╗███████╗██████╗ ████████╗
-██║    ██║██╔════╝██╔══██╗██╔══██╗      ██╔════╝██╔═══██╗████╗  ██║██║   ██║██╔════╝██╔══██╗╚══██╔══╝
-██║ █╗ ██║█████╗  ██████╔╝██████╔╝█████╗██║     ██║   ██║██╔██╗ ██║██║   ██║█████╗  ██████╔╝   ██║   
-██║███╗██║██╔══╝  ██╔══██╗██╔═══╝ ╚════╝██║     ██║   ██║██║╚██╗██║╚██╗ ██╔╝██╔══╝  ██╔══██╗   ██║   
-╚███╔███╔╝███████╗██████╔╝██║           ╚██████╗╚██████╔╝██║ ╚████║ ╚████╔╝ ███████╗██║  ██║   ██║   
- ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝            ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝   ╚═╝   
-                                                                                                     
-"""
-
 
 class WebPConverterCLI:
     def __init__(self):
@@ -212,131 +246,357 @@ class WebPConverterCLI:
                 self.show_info()
 
     def convert_images_workflow(self):
-        # Prompt for input files/folders
-        self.console.print(f"[bold cyan]{RETRO_ASCII}[/bold cyan]")
-        input_path = questionary.path(
-            "Enter input image file(s) or a folder path (comma-separated for multiple files):",
-            qmark="🖼️",
-            style=CUSTOM_STYLE,
-        ).ask()
-        if not input_path:
-            self.console.print("[yellow]No input provided. Returning to menu.[/yellow]")
-            return
+        input_path = self._get_input_path()
         inputs = self._parse_inputs(input_path)
         if not self._validate_inputs_exist(inputs):
             self.console.print("[red]One or more input paths do not exist.[/red]")
             return
 
-        # Prompt for output directory
+        output_dir = self._get_output_dir(inputs)
+        mode = self._get_operation_mode()
+        quality, lossless, force, remove_bg = self._get_conversion_options(mode)
+
+        files_to_convert = self._get_files_to_convert(inputs, output_dir, mode)
+        if not files_to_convert:
+            self.console.print("[yellow]No images found to process.[/yellow]")
+            return
+
+        self._process_files(files_to_convert, mode, quality, lossless, force, remove_bg)
+
+    def _get_input_path(self):
+        return questionary.path(
+            "Enter input image file(s) or a folder path (comma-separated for multiple files):",
+            qmark="🖼️ ",
+            style=CUSTOM_STYLE,
+        ).ask()
+
+    def _get_output_dir(self, inputs):
         default_dir = get_downloads_dir()
         output_dir = questionary.path(
             f"Enter output directory for all files (default: {default_dir})",
             default=default_dir,
-            qmark="📂",
+            qmark="📂 ",
             style=CUSTOM_STYLE,
         ).ask()
         if not output_dir:
             output_dir = default_dir
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+        return output_dir
 
-        # Prompt for WebP quality
-        quality = questionary.text(
-            "WebP quality (0-100, default: 80):",
-            default="80",
-            validate=lambda val: val.isdigit() and 0 <= int(val) <= 100,
-            qmark="🎚️",
+    def _get_operation_mode(self):
+        return questionary.select(
+            "Choose operation mode:",
+            choices=[
+                "Convert to WebP",
+                "Resize Only (retain original format)",
+            ],
+            qmark="🔧 ",
             style=CUSTOM_STYLE,
         ).ask()
-        quality = int(quality or 80)
 
-        # Prompt for overwrite
+    def _get_conversion_options(self, mode):
+        quality = 80
+        lossless = False
+        if mode == "Convert to WebP":
+            lossless_choice = questionary.select(
+                "WebP compression mode (smaller files = Lossy, may increase size = Lossless):",
+                choices=[
+                    "Lossy (smaller files, recommended)",
+                    "Lossless (may increase file size)",
+                ],
+                default="Lossy (smaller files, recommended)",
+                qmark="🗜️ ",
+                style=CUSTOM_STYLE,
+            ).ask()
+            lossless = (lossless_choice.startswith("Lossless"))
+            quality = questionary.text(
+                "WebP quality (0-100, default: 80):",
+                default="80",
+                validate=lambda val: val.isdigit() and 0 <= int(val) <= 100,
+                qmark="🎚️ ",
+                style=CUSTOM_STYLE,
+            ).ask()
+            quality = int(quality or 80)
+
         force = questionary.confirm(
             "Overwrite output file(s) without prompting?",
             default=False,
-            qmark="⚠️",
+            qmark="⚠️ ",
             style=CUSTOM_STYLE,
         ).ask()
 
-        files_to_convert = list(self._get_image_files(inputs, output_dir))
+        remove_bg = False
+        if mode == "Convert to WebP":
+            remove_bg = questionary.confirm(
+                "Remove background from images? (uses AI)",
+                default=False,
+                qmark="🪄 ",
+                style=CUSTOM_STYLE,
+            ).ask()
 
-        # Confirm before proceeding if no files found
-        if not files_to_convert:
-            self.console.print("[yellow]No images found to convert.[/yellow]")
-            return
+        return quality, lossless, force, remove_bg
 
-        # Convert with tqdm progress
-        errors = []
-        if len(files_to_convert) > 1:
-            with _create_progress_bar(len(files_to_convert)) as pbar:
-                for file_path, output_path in files_to_convert:
-                    try:
-                        convert_to_webp(
-                            file_path, output_path, force=force, quality=quality
-                        )
-                    except Exception as e:
-                        errors.append((file_path, str(e)))
-                    pbar.update(1)
-            if errors:
-                self.console.print(
-                    Panel.fit(
-                        f"[red]Some files failed to convert:[/red]\n"
-                        + "\n".join(f"{f}: {e}" for f, e in errors),
-                        border_style="red",
-                    )
-                )
+    def _get_files_to_convert(self, inputs, output_dir, mode):
+        files_to_convert = []
+        for input_path in inputs:
+            if os.path.isdir(input_path):
+                for input_file, output_file, is_webp in self._get_image_files_from_dir(input_path, output_dir, input_path):
+                    if is_webp:
+                        files_to_convert.append((input_file, output_file, 'copy'))
+                    else:
+                        files_to_convert.append((input_file, output_file, 'convert'))
             else:
-                self.console.print(
-                    Panel.fit(
-                        "[green]All images converted successfully![/green]",
-                        border_style="green",
-                    )
-                )
-        else:
-            file_path, output_path = files_to_convert[0]
+                file_lower = input_path.lower()
+                if file_lower.endswith('.webp'):
+                    rel_name = os.path.basename(input_path)
+                    output_file = os.path.join(output_dir, rel_name)
+                    files_to_convert.append((input_path, output_file, 'copy'))
+                else:
+                    rel_name = os.path.splitext(os.path.basename(input_path))[0] + '.webp'
+                    output_file = os.path.join(output_dir, rel_name)
+                    files_to_convert.append((input_path, output_file, 'convert'))
+        return files_to_convert
+
+    def _process_files(self, files_to_convert, mode, quality, lossless, force, remove_bg):
+        errors = []
+        from PIL import Image
+        def resize_and_save(input_path, output_path):
             try:
-                convert_to_webp(file_path, output_path, force=force, quality=quality)
-                self.console.print(
-                    Panel.fit(
-                        f"[green]Converted:[/green] {file_path} → {output_path}",
-                        border_style="green",
-                    )
-                )
+                with Image.open(input_path) as img:
+                    img = img.copy()
+                    img.save(output_path)
+                return True
             except Exception as e:
-                self.console.print(
-                    Panel.fit(
-                        f"[red]Failed to convert: {file_path}\nError: {e}[/red]",
-                        border_style="red",
+                return str(e)
+
+        if mode == "Resize Only (retain original format)":
+            if len(files_to_convert) > 1:
+                with _create_progress_bar(len(files_to_convert)) as pbar:
+                    for file_path, output_path, action in files_to_convert:
+                        try:
+                            if action == 'copy':
+                                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                                shutil.copy2(file_path, output_path)
+                                self.console.print(
+                                    Panel.fit(
+                                        f"[yellow]Skipped (already WebP), copied to:[/yellow] {file_path} → {output_path}",
+                                        border_style="yellow",
+                                    )
+                                )
+                            else:
+                                result = resize_and_save(file_path, output_path)
+                                if result is not True:
+                                    errors.append((file_path, result))
+                        except Exception as e:
+                            errors.append((file_path, str(e)))
+                        pbar.update(1)
+                total = len(files_to_convert)
+                failed = len(errors)
+                succeeded = total - failed
+                if errors:
+                    fail_list = "\n".join(f"{os.path.basename(f)}: {e}" for f, e in errors)
+                    summary = (
+                        f"[yellow]Processed:[/yellow] {total}\n"
+                        f"[green]Successfully resized/copied:[/green] {succeeded}\n"
+                        f"[red]Failed:[/red] {failed}\n\n"
+                        f"[red]Failed files:[/red]\n{fail_list}"
                     )
-                )
+                    self.console.print(
+                        Panel.fit(
+                            summary,
+                            border_style="red",
+                        )
+                    )
+                else:
+                    summary = (
+                        f"[yellow]Processed:[/yellow] {total}\n"
+                        f"[green]Successfully resized/copied:[/green] {total}\n"
+                        f"[red]Failed:[/red] 0"
+                    )
+                    self.console.print(
+                        Panel.fit(
+                            summary,
+                            border_style="green",
+                        )
+                    )
+            else:
+                file_path, output_path, action = files_to_convert[0]
+                try:
+                    if action == 'copy':
+                        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                        shutil.copy2(file_path, output_path)
+                        self.console.print(
+                            Panel.fit(
+                                f"[yellow]Skipped (already WebP), copied to:[/yellow] {file_path} → {output_path}",
+                                border_style="yellow",
+                            )
+                        )
+                    else:
+                        result = resize_and_save(file_path, output_path)
+                        if result is not True:
+                            raise Exception(result)
+                        self.console.print(
+                            Panel.fit(
+                                f"[green]Resized:[/green] {file_path} → {output_path}",
+                                border_style="green",
+                            )
+                        )
+                except Exception as e:
+                    self.console.print(
+                        Panel.fit(
+                            f"[red]Failed to resize: {file_path}\nError: {e}[/red]",
+                            border_style="red",
+                        )
+                    )
+        else:
+            if len(files_to_convert) > 1:
+                with _create_progress_bar(len(files_to_convert)) as pbar:
+                    for file_path, output_path, action in files_to_convert:
+                        try:
+                            if action == 'copy':
+                                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                                shutil.copy2(file_path, output_path)
+                                self.console.print(
+                                    Panel.fit(
+                                        f"[yellow]Skipped (already WebP), copied to:[/yellow] {file_path} → {output_path}",
+                                        border_style="yellow",
+                                    )
+                                )
+                            else:
+                                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                                convert_to_webp(
+                                    file_path,
+                                    output_path,
+                                    force=force,
+                                    quality=quality,
+                                    remove_bg=remove_bg,
+                                    lossless=lossless,
+                                )
+                        except Exception as e:
+                            errors.append((file_path, str(e)))
+                        pbar.update(1)
+                total = len(files_to_convert)
+                failed = len(errors)
+                succeeded = total - failed
+                # Calculate counts for summary
+                converted_count = sum(1 for _, _, a in files_to_convert if a == 'convert')
+                copied_count = sum(1 for _, _, a in files_to_convert if a == 'copy')
+                if errors:
+                    fail_list = "\n".join(f"{os.path.basename(f)}: {e}" for f, e in errors)
+                    summary = (
+                        f"[yellow]Processed:[/yellow] {total}\n"
+                        f"[green]Successfully converted:[/green] {converted_count - failed}\n"
+                        f"[yellow]Copied (WebP):[/yellow] {copied_count}\n"
+                        f"[red]Failed conversions:[/red] {failed}\n\n"
+                        f"[red]Failed files:[/red]\n{fail_list}"
+                    )
+                    self.console.print(
+                        Panel.fit(
+                            summary,
+                            border_style="red",
+                        )
+                    )
+                else:
+                    # Calculate counts for summary
+                    converted_count = sum(1 for _, _, a in files_to_convert if a == 'convert')
+                    copied_count = sum(1 for _, _, a in files_to_convert if a == 'copy')
+                    summary = (
+                        f"[yellow]Processed:[/yellow] {total}\n"
+                        f"[green]Successfully converted:[/green] {converted_count}\n"
+                        f"[yellow]Copied (WebP):[/yellow] {copied_count}\n"
+                        f"[red]Failed:[/red] 0"
+                    )
+                    self.console.print(
+                        Panel.fit(
+                            summary,
+                            border_style="green",
+                        )
+                    )
+            else:
+                file_path, output_path, action = files_to_convert[0]
+                try:
+                    if action == 'copy':
+                        shutil.copy2(file_path, output_path)
+                        self.console.print(
+                            Panel.fit(
+                                f"[green]Copied:[/green] {file_path} → {output_path}",
+                                border_style="green",
+                            )
+                        )
+                    else:
+                        convert_to_webp(
+                            file_path,
+                            output_path,
+                            force=force,
+                            quality=quality,
+                            remove_bg=remove_bg,
+                            lossless=lossless,
+                        )
+                        self.console.print(
+                            Panel.fit(
+                                f"[green]Converted:[/green] {file_path} → {output_path}",
+                                border_style="green",
+                            )
+                        )
+                except Exception as e:
+                    self.console.print(
+                        Panel.fit(
+                            f"[red]Failed to convert: {file_path}\nError: {e}[/red]",
+                            border_style="red",
+                        )
+                    )
 
     def _parse_inputs(self, input_path):
-        """Parse comma-separated input string into a list of paths."""
         return [f.strip() for f in input_path.split(",") if f.strip()]
 
     def _validate_inputs_exist(self, inputs):
-        """Return True if all given input paths exist."""
         return all(os.path.exists(p) for p in inputs)
 
-    def _get_image_files_from_dir(self, directory):
-        """Recursively yield image file paths from a directory."""
+    def _get_image_files_from_dir(self, directory, output_dir=None, input_root=None):
+        """
+        Recursively yield (input_file, output_file, is_webp) tuples, preserving folder structure.
+        If file is .webp, is_webp=True; else, is_webp=False.
+        """
+        if input_root is None:
+            input_root = directory
         for root, _, files in os.walk(directory):
             for file in files:
-                if file.lower().endswith(tuple(Image.registered_extensions().keys())):
-                    yield os.path.join(root, file)
+                file_lower = file.lower()
+                if not file_lower.endswith(tuple(Image.registered_extensions().keys())):
+                    continue
+                input_file = os.path.join(root, file)
+                if output_dir:
+                    rel_path = os.path.relpath(input_file, input_root)
+                    if file_lower.endswith('.webp'):
+                        output_file = os.path.join(output_dir, rel_path)
+                        yield (input_file, output_file, True)
+                    else:
+                        rel_path = os.path.splitext(rel_path)[0] + '.webp'
+                        output_file = os.path.join(output_dir, rel_path)
+                        yield (input_file, output_file, False)
+                else:
+                    yield (input_file, None, file_lower.endswith('.webp'))
 
     def _get_image_files(self, inputs, output_dir):
-        """Yield (input_file, output_file) tuples for all valid images in given inputs."""
+        """
+        Yield (input_file, output_file, is_webp) for all files in inputs, preserving structure.
+        """
         for input_path in inputs:
             if os.path.isdir(input_path):
-                for file_path in self._get_image_files_from_dir(input_path):
-                    base = os.path.splitext(os.path.basename(file_path))[0]
-                    output_path = os.path.join(output_dir, base + '.webp')
-                    yield (file_path, output_path)
+                for input_file, output_file, is_webp in self._get_image_files_from_dir(input_path, output_dir, input_path):
+                    yield (input_file, output_file, is_webp)
             else:
-                base = os.path.splitext(os.path.basename(input_path))[0]
-                output_path = os.path.join(output_dir, base + '.webp')
-                yield (input_path, output_path)
+                file_lower = input_path.lower()
+                if file_lower.endswith('.webp'):
+                    rel_name = os.path.basename(input_path)
+                    output_file = os.path.join(output_dir, rel_name)
+                    yield (input_path, output_file, True)
+                else:
+                    rel_name = os.path.splitext(os.path.basename(input_path))[0] + '.webp'
+                    output_file = os.path.join(output_dir, rel_name)
+                    yield (input_path, output_file, False)
+
     def show_info(self):
         self.console.print(
             Panel.fit(

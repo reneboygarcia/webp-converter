@@ -7,6 +7,7 @@ import sys
 import os
 import argparse
 from PIL import Image
+from .image_utils import save_image_with_transparency
 
 def convert_to_webp(input_path: str, output_path: str = None) -> None:
     """
@@ -24,11 +25,11 @@ def convert_to_webp(input_path: str, output_path: str = None) -> None:
 
     try:
         with Image.open(input_path) as img:
-            img = img.convert('RGBA') if img.mode in ('P', 'LA') else img.convert('RGB')
+            img = img.convert('RGBA')
             if not output_path:
                 base, _ = os.path.splitext(input_path)
                 output_path = base + '.webp'
-            img.save(output_path, 'WEBP')
+            save_image_with_transparency(img, output_path, format="WEBP")
             print(f"Converted '{input_path}' to '{output_path}'.")
     except Exception as e:
         print(f"Error converting image: {e}")
@@ -47,3 +48,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

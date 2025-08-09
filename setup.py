@@ -11,6 +11,8 @@ setup(
         'tqdm>=4.0.0',
         'rich>=13.0.0',
         'questionary>=2.0.0',
+        'rembg>=2.0.0',
+        'onnxruntime>=1.15.0',
     ],
     entry_points={
         'console_scripts': [
