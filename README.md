@@ -16,6 +16,9 @@ A modern, interactive command-line tool to batch convert images to the WebP form
 - **Rich Visuals**: Colorful panels, banners, and progress bars powered by [rich](https://github.com/Textualize/rich) and [tqdm](https://github.com/tqdm/tqdm).
 - **Batch & Folder Support**: Convert single images or entire folders, recursively.
 - **Quality Control**: Set WebP quality interactively.
+- **Lossless/Lossy Toggle**: Choose lossless or lossy WebP compression per run.
+- **AI Background Removal**: Optional background removal powered by [rembg](https://github.com/danielgatis/rembg) (uses ONNX Runtime).
+- **Preserve Structure & WebP Copy**: Recreate input folder structure in the output; existing `.webp` files are copied without re-encoding.
 - **Overwrite Handling**: Smart prompts to avoid accidental overwrites.
 - **Friendly Error Reporting**: Clear, styled feedback for errors and successes.
 - **Cross-platform**: Works on macOS, Linux, and Windows (Python 3.7+).
@@ -39,6 +42,11 @@ A modern, interactive command-line tool to batch convert images to the WebP form
    pip install -r requirements.txt
    ```
 
+4. **(Optional) Install the package locally to enable the console command:**
+   ```sh
+   pip install -e .
+   ```
+
 ---
 
 ## Usage
@@ -52,8 +60,23 @@ python -m webp_converter.cli
 Or if installed as a package:
 
 ```sh
-webp-converter
+webp-convert
 ```
+
+### Interactive Options
+
+- **Operation Mode**
+  - Convert to WebP
+  - Resize Only (retain original format)
+- **Conversion Settings (Convert to WebP mode)**
+  - Quality: 0–100 (default 80)
+  - Compression: Lossy or Lossless
+  - AI Background Removal: optional, powered by rembg
+- **File Handling**
+  - Process single files or folders recursively
+  - Preserve input folder structure in the output
+  - Existing `.webp` files are copied without re-encoding
+  - Overwrite prompts (or choose to overwrite automatically)
 
 ### Main Features
 - **Convert Images**: Select files or folders, set output directory and quality, and convert with a progress bar.
@@ -85,14 +108,8 @@ pip install -r requirements.txt
 - Code follows clean code principles (SRP, OCP, DRY).
 - Main CLI logic is in `webp_converter/cli.py`.
 - UI helpers in `webp_converter/ui_helpers.py`.
-- Conversion logic in `webp_converter.py` and `cli.py`.
+- Shared image utilities in `webp_converter/image_utils.py`.
 - Contributions welcome! Please open issues or pull requests.
-
----
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
