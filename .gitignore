@@ -24,4 +24,9 @@ dist
 # cursorrules
 .cursorrules
 
+# Homebrew Tap local files
+homebrew-tap/
+webp-converter-*.tar.gz
+
+
 

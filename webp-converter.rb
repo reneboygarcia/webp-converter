@@ -4,7 +4,7 @@ class WebpConverter < Formula
   desc "A simple CLI tool to convert images to WebP format"
   homepage "https://github.com/reneboygarcia/webp-converter"
   url "https://github.com/reneboygarcia/webp-converter/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "REPLACE_WITH_ACTUAL_SHA256_OF_YOUR_TAG_RELEASE"
+  sha256 "371655f7a21a9df016f2718cc9ea52afb30ece17a3aa7ea6cec451c79c2a9b11"
   license "MIT"
 
   depends_on "python@3.12"
