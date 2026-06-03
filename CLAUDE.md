@@ -4,22 +4,34 @@ This guide details the commands, structure, and guidelines for developing and ru
 
 ## Build and Run Commands
 
-### Installation
-*   **Virtual Environment Setup**:
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-*   **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-*   **Install Package Locally (Editable Mode)**:
-    ```bash
-    pip install -e .
-    ```
+### Development Makefile
 
-### Execution
+The project includes a Makefile to orchestrate development tasks:
+
+```bash
+# Installation (creates venv and installs dependencies)
+make install
+
+# Run unit tests
+make test
+
+# Run Trivy vulnerability scan
+make sca
+
+# Generate CycloneDX SBOM (to sbom.cyclonedx.json)
+make sbom
+
+# Run pre-merge check (tests + sca)
+make pre-merge
+# Skip local SCA scan if Trivy/DB is failing (e.g. Docker credential issues)
+SKIP_SCA=1 make pre-merge
+
+# Clean build artifacts
+make clean
+```
+
+### Manual Commands (Fallback)
+
 *   **Run CLI interactively**:
     ```bash
     python -m webp_converter.cli
@@ -29,12 +41,6 @@ This guide details the commands, structure, and guidelines for developing and ru
 *   **Convert single file directly**:
     ```bash
     python webp_converter.py input.jpg output.webp
-    ```
-
-### Cleanup
-*   **Clean build artifacts**:
-    ```bash
-    rm -rf build/ dist/ *.egg-info webp_converter.egg-info
     ```
 
 ## Testing
