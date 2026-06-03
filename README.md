@@ -26,6 +26,23 @@ A modern, interactive command-line tool to batch convert images to the WebP form
 
 ## Installation
 
+### Via Homebrew (macOS / Linux)
+
+Since this utility is hosted on a custom Homebrew Tap, you can install it by running:
+
+```sh
+brew install reneboygarcia/homebrew-tap/webp-converter
+```
+
+Or you can tap the repository first and install:
+
+```sh
+brew tap reneboygarcia/homebrew-tap
+brew install webp-converter
+```
+
+### Manual Installation (From Source)
+
 1. **Clone the repository:**
    ```sh
    git clone https://github.com/reneboygarcia/webp-converter.git
