@@ -8,6 +8,9 @@ class WebpConverter < Formula
   license "MIT"
 
   depends_on "python@3.12"
+  depends_on "jpeg-turbo"
+  depends_on "libpng"
+  depends_on "webp"
 
   resource "wcwidth" do
     url "https://files.pythonhosted.org/packages/2c/ee/afaf0f85a9a18fe47a67f1e4422ed6cf1fe642f0ae0a2f81166231303c52/wcwidth-0.7.0.tar.gz"
