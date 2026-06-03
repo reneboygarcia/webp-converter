@@ -53,8 +53,29 @@ class WebpConverter < Formula
   end
 
   def install
-    ENV["MAX_CONCURRENCY"] = ENV.make_jobs.to_s
-    virtualenv_install_with_resources
+    venv = virtualenv_create(libexec, "python3.12")
+    
+    resources.each do |r|
+      if r.name == "pillow"
+        ENV["MAX_CONCURRENCY"] = ENV.make_jobs.to_s
+        r.stage do
+          system libexec/"bin/pip", "install", *std_pip_args(build_isolation: true),
+                 "--config-settings=tiff=disable",
+                 "--config-settings=freetype=disable",
+                 "--config-settings=raqm=disable",
+                 "--config-settings=lcms=disable",
+                 "--config-settings=jpeg2000=disable",
+                 "--config-settings=imagequant=disable",
+                 "--config-settings=xcb=disable",
+                 "--config-settings=avif=disable",
+                 "."
+        end
+      else
+        venv.pip_install r
+      end
+    end
+    
+    venv.pip_install_and_link buildpath
   end
 
   test do

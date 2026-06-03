@@ -14,6 +14,7 @@ Welcome, AI agent! This repository contains a Python command-line utility for co
 *   [webp-converter.rb](file:///Users/reneboygarcia/Documents/Github%20Projects/webp_converter/webp-converter.rb): Template for the Homebrew Tap Formula. Used for reference when building updates.
 *   [setup.py](file:///Users/reneboygarcia/Documents/Github%20Projects/webp_converter/setup.py): Distribution metadata and python dependencies.
 *   [requirements.txt](file:///Users/reneboygarcia/Documents/Github%20Projects/webp_converter/requirements.txt): Pinned requirements.
+*   [docs/solutions/](file:///Users/reneboygarcia/Documents/Github%20Projects/webp_converter/docs/solutions) (Documented Solutions): Searchable knowledge store of past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
 
 ---
 

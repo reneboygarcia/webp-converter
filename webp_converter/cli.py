@@ -651,6 +651,13 @@ class WebPConverterCLI:
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+        print("webp-convert - A simple CLI tool to convert images to WebP format")
+        print("\nUsage:")
+        print("  webp-convert          Launch interactive TUI menu")
+        print("  webp-convert --help   Show this help message")
+        sys.exit(0)
+
     cli = WebPConverterCLI()
     cli.show_welcome()
     cli.main_menu()
