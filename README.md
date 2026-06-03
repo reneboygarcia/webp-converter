@@ -17,7 +17,6 @@ A modern, interactive command-line tool to batch convert images to the WebP form
 - **Batch & Folder Support**: Convert single images or entire folders, recursively.
 - **Quality Control**: Set WebP quality interactively.
 - **Lossless/Lossy Toggle**: Choose lossless or lossy WebP compression per run.
-- **AI Background Removal**: Optional background removal powered by [rembg](https://github.com/danielgatis/rembg) (uses ONNX Runtime).
 - **Preserve Structure & WebP Copy**: Recreate input folder structure in the output; existing `.webp` files are copied without re-encoding.
 - **Overwrite Handling**: Smart prompts to avoid accidental overwrites.
 - **Friendly Error Reporting**: Clear, styled feedback for errors and successes.
@@ -71,7 +70,6 @@ webp-convert
 - **Conversion Settings (Convert to WebP mode)**
   - Quality: 0–100 (default 80)
   - Compression: Lossy or Lossless
-  - AI Background Removal: optional, powered by rembg
 - **File Handling**
   - Process single files or folders recursively
   - Preserve input folder structure in the output

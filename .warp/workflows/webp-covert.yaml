@@ -1,0 +1,13 @@
+name: webp-covert
+command: cd "{{directory}}" && source venv/bin/activate && python -m webp_converter.cli
+tags:
+  - webp
+  - images
+  - converter
+description: Launch the WebP converter CLI from this repository.
+shells:
+  - zsh
+arguments:
+  - name: directory
+    description: Path to the webp_converter project directory.
+    default_value: /Users/reneboygarcia/Documents/Github Projects/webp_converter

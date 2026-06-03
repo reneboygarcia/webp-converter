@@ -1,7 +1,5 @@
 import os
-os.environ["OMP_DISPLAY_ENV"] = "FALSE"
 import sys
-import os
 import shutil
 from pathlib import Path
 from PIL import Image
@@ -12,7 +10,6 @@ import questionary
 from questionary import Style
 from .ui_helpers import show_success, show_error, show_warning, show_info, ask_overwrite
 from .image_utils import save_image_with_transparency
-from .bg_removal import remove_background
 
 # ANSI color codes for retro terminal style
 CYAN = "\033[96m"
@@ -76,7 +73,6 @@ def convert_to_webp_core(
     input_path: str,
     output_path: str,
     quality: int = 80,
-    remove_bg: bool = False,
     lossless: bool = False,
 ) -> bool:
     """
@@ -84,18 +80,8 @@ def convert_to_webp_core(
     Returns True on success, False on error.
     """
     try:
-        from .bg_removal import remove_background
         with Image.open(input_path) as img:
             img = img.convert("RGBA")
-            def has_transparency(image):
-                if image.mode in ("RGBA", "LA"):
-                    alpha = image.getchannel("A")
-                    return alpha.getextrema()[0] < 255
-                return False
-            if remove_bg and not has_transparency(img):
-                img = remove_background(img)
-            elif remove_bg and has_transparency(img):
-                show_info("Image already has transparency. Skipping background removal.", title="Background Removal")
             save_image_with_transparency(img, output_path, format="WEBP", lossless=lossless, quality=quality)
             original_size = os.path.getsize(input_path)
             new_size = os.path.getsize(output_path)
@@ -116,7 +102,6 @@ def convert_to_webp(
     output_path: str = None,
     force: bool = False,
     quality: int = 80,
-    remove_bg: bool = False,
     lossless: bool = False,
 ) -> bool:
     """
@@ -138,7 +123,6 @@ def convert_to_webp(
         input_path,
         output_path,
         quality=quality,
-        remove_bg=remove_bg,
         lossless=lossless,
     )
 
@@ -254,14 +238,14 @@ class WebPConverterCLI:
 
         output_dir = self._get_output_dir(inputs)
         mode = self._get_operation_mode()
-        quality, lossless, force, remove_bg = self._get_conversion_options(mode)
+        quality, lossless, force = self._get_conversion_options(mode)
 
         files_to_convert = self._get_files_to_convert(inputs, output_dir, mode)
         if not files_to_convert:
             self.console.print("[yellow]No images found to process.[/yellow]")
             return
 
-        self._process_files(files_to_convert, mode, quality, lossless, force, remove_bg)
+        self._process_files(files_to_convert, mode, quality, lossless, force)
 
     def _get_input_path(self):
         return questionary.path(
@@ -326,16 +310,7 @@ class WebPConverterCLI:
             style=CUSTOM_STYLE,
         ).ask()
 
-        remove_bg = False
-        if mode == "Convert to WebP":
-            remove_bg = questionary.confirm(
-                "Remove background from images? (uses AI)",
-                default=False,
-                qmark="🪄 ",
-                style=CUSTOM_STYLE,
-            ).ask()
-
-        return quality, lossless, force, remove_bg
+        return quality, lossless, force
 
     def _get_files_to_convert(self, inputs, output_dir, mode):
         files_to_convert = []
@@ -358,7 +333,7 @@ class WebPConverterCLI:
                     files_to_convert.append((input_path, output_file, 'convert'))
         return files_to_convert
 
-    def _process_files(self, files_to_convert, mode, quality, lossless, force, remove_bg):
+    def _process_files(self, files_to_convert, mode, quality, lossless, force):
         errors = []
         from PIL import Image
         def resize_and_save(input_path, output_path):
@@ -470,7 +445,6 @@ class WebPConverterCLI:
                                     output_path,
                                     force=force,
                                     quality=quality,
-                                    remove_bg=remove_bg,
                                     lossless=lossless,
                                 )
                         except Exception as e:
@@ -530,7 +504,6 @@ class WebPConverterCLI:
                             output_path,
                             force=force,
                             quality=quality,
-                            remove_bg=remove_bg,
                             lossless=lossless,
                         )
                         self.console.print(

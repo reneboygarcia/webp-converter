@@ -18,3 +18,10 @@ dist
 # Log files
 *.log
 
+# Mac-specific
+.DS_Store
+
+# cursorrules
+.cursorrules
+
+
