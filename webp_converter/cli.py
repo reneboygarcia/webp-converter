@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 from rich.console import Console
 from rich.panel import Panel
-from tqdm import tqdm
+from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 import questionary
 from questionary import Style
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -175,13 +175,33 @@ def prompt_for_directory(default_dir):
     return out
 
 
+class RichProgressBar:
+    def __init__(self, total):
+        self.progress = Progress(
+            TextColumn("Converting: [progress.percentage]{task.percentage:>3.0f}%"),
+            BarColumn(bar_width=40),
+            TextColumn("[progress.completed]{task.completed}/{task.total}"),
+            TextColumn("["),
+            TimeElapsedColumn(),
+            TextColumn("<"),
+            TimeRemainingColumn(),
+            TextColumn("]"),
+        )
+        self.task_id = self.progress.add_task("Converting", total=total)
+
+    def __enter__(self):
+        self.progress.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.progress.stop()
+
+    def update(self, n=1):
+        self.progress.update(self.task_id, advance=n)
+
+
 def _create_progress_bar(total_images):
-    return tqdm(
-        total=total_images,
-        unit="img",
-        desc="Converting",
-        bar_format="{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
-    )
+    return RichProgressBar(total_images)
 
 
 CUSTOM_STYLE = Style(
