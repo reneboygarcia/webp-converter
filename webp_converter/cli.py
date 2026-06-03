@@ -75,32 +75,20 @@ def convert_to_webp_core(
     output_path: str,
     quality: int = 80,
     lossless: bool = False,
-    silent: bool = False,
-) -> bool:
+) -> dict:
     """
     Core image-to-WebP conversion logic. No user interaction or file existence checks.
-    Returns True on success, False on error.
+    Returns a dict of file metrics on success, or raises an exception.
     """
-    try:
-        with Image.open(input_path) as img:
-            if img.mode != "RGBA":
-                img = img.convert("RGBA")
-            save_image_with_transparency(img, output_path, format="WEBP", lossless=lossless, quality=quality)
-            original_size = os.path.getsize(input_path)
-            new_size = os.path.getsize(output_path)
-            if not silent:
-                show_success(
-                    os.path.basename(input_path),
-                    os.path.basename(output_path),
-                    original_size,
-                    new_size,
-                    quality,
-                )
-            return True
-    except Exception as e:
-        if not silent:
-            show_error(str(e), title="Conversion Error")
-        return False
+    with Image.open(input_path) as img:
+        if img.mode != "RGBA":
+            img = img.convert("RGBA")
+        save_image_with_transparency(img, output_path, format="WEBP", lossless=lossless, quality=quality)
+        return {
+            "original_size": os.path.getsize(input_path),
+            "new_size": os.path.getsize(output_path),
+            "quality": quality,
+        }
 
 def convert_to_webp(
     input_path: str,
@@ -127,14 +115,29 @@ def convert_to_webp(
         if not ask_overwrite(os.path.basename(output_path)):
             show_info("Conversion skipped by user.", title="Skipped")
             return False
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    return convert_to_webp_core(
-        input_path,
-        output_path,
-        quality=quality,
-        lossless=lossless,
-        silent=silent,
-    )
+    dir_name = os.path.dirname(output_path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+    try:
+        metrics = convert_to_webp_core(
+            input_path,
+            output_path,
+            quality=quality,
+            lossless=lossless,
+        )
+        if not silent:
+            show_success(
+                os.path.basename(input_path),
+                os.path.basename(output_path),
+                metrics["original_size"],
+                metrics["new_size"],
+                metrics["quality"],
+            )
+        return True
+    except Exception as e:
+        if not silent:
+            show_error(str(e), title="Conversion Error")
+        return False
 
 
 def retro_input(prompt_msg, default=None):
@@ -373,7 +376,9 @@ class WebPConverterCLI:
         def process_single_resize(item):
             file_path, output_path, action = item
             try:
-                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                dir_name = os.path.dirname(output_path)
+                if dir_name:
+                    os.makedirs(dir_name, exist_ok=True)
                 if action == 'copy':
                     shutil.copy2(file_path, output_path)
                     return ('copy', file_path, output_path, True)
@@ -389,7 +394,9 @@ class WebPConverterCLI:
         def process_single_convert(item):
             file_path, output_path, action = item
             try:
-                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                dir_name = os.path.dirname(output_path)
+                if dir_name:
+                    os.makedirs(dir_name, exist_ok=True)
                 if action == 'copy':
                     shutil.copy2(file_path, output_path)
                     return ('copy', file_path, output_path, True)
@@ -453,7 +460,9 @@ class WebPConverterCLI:
             else:
                 file_path, output_path, action = files_to_convert[0]
                 try:
-                    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                    dir_name = os.path.dirname(output_path)
+                    if dir_name:
+                        os.makedirs(dir_name, exist_ok=True)
                     if action == 'copy':
                         shutil.copy2(file_path, output_path)
                         self.console.print(
@@ -521,7 +530,9 @@ class WebPConverterCLI:
             else:
                 file_path, output_path, action = files_to_convert[0]
                 try:
-                    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                    dir_name = os.path.dirname(output_path)
+                    if dir_name:
+                        os.makedirs(dir_name, exist_ok=True)
                     if action == 'copy':
                         shutil.copy2(file_path, output_path)
                         self.console.print(
