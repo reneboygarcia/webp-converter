@@ -78,6 +78,16 @@ class WebpConverter < Formula
     venv.pip_install_and_link buildpath
   end
 
+  def caveats
+    <<~EOS
+      To run the interactive CLI, execute:
+        webp-convert
+
+      To view help options:
+        webp-convert --help
+    EOS
+  end
+
   test do
     assert_match "webp-convert", shell_output("#{bin}/webp-convert --help")
   end
