@@ -7,7 +7,7 @@ setup(
     author='eboygarcia',
     packages=find_packages(),
     install_requires=[
-        'Pillow>=10.0.0',
+        'Pillow>=10.2.0',
         'tqdm>=4.0.0',
         'rich>=13.0.0',
         'questionary>=2.0.0',
