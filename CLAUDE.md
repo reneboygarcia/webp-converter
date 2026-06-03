@@ -37,6 +37,21 @@ This guide details the commands, structure, and guidelines for developing and ru
     rm -rf build/ dist/ *.egg-info webp_converter.egg-info
     ```
 
+## Testing
+
+### Execution
+*   **Run unit tests**:
+    ```bash
+    python -m unittest discover -s tests
+    ```
+    (Or using the virtual environment interpreter: `venv/bin/python -m unittest discover -s tests`)
+
+### Test Discipline
+- **Location**: All unit tests must live in the `tests/` directory, named with the `test_` prefix (e.g. `tests/test_cli.py`).
+- **Isolation**: Use `tempfile` for creating and cleaning up test inputs and outputs to prevent side-effects on the workspace.
+- **Assertions**: Validate critical invariants (like color mode `RGBA`, pixel transparency value, or structured metrics dictionaries).
+- **Test Integrity**: If a test fails and the expectation is correct, do not modify the test code. Iterate on the package implementation until the test passes.
+
 ---
 
 ## Code Guidelines & Repository Standards
