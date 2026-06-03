@@ -46,23 +46,12 @@ RETRO_ASCII_SMALL = """
  ████   ████  ██  ██   ██   ██████ ██  ██   ██   ██████ ██  ██
 """
 
-RETRO_BORDER = f"{CYAN}{BOLD}+{'-'*40}+{RESET}"
-
-def retro_print(msg, color=CYAN, border=True):
-    if border:
-        print(RETRO_BORDER)
-    for line in msg.split("\n"):
-        if line.strip():
-            print(f"{color}| {line.ljust(36)} |{RESET}")
-    if border:
-        print(RETRO_BORDER)
 
 
 def get_downloads_dir() -> str:
     """Return the user's Downloads directory in a cross-platform way."""
     if os.name == "nt":
         import ctypes
-        from pathlib import Path
         try:
             from ctypes import windll, wintypes
             CSIDL_PERSONAL = 0x0005
@@ -80,8 +69,6 @@ def get_downloads_dir() -> str:
         return os.path.join(os.path.expanduser("~"), "Downloads")
 
 
-from .ui_helpers import show_success, show_error, show_warning, show_info, ask_overwrite
-from .image_utils import save_image_with_transparency
 
 
 def convert_to_webp_core(
@@ -141,8 +128,8 @@ def convert_to_webp(
         )
         if not silent:
             show_success(
-                os.path.basename(input_path),
-                os.path.basename(output_path),
+                input_path,
+                output_path,
                 metrics["original_size"],
                 metrics["new_size"],
                 metrics["quality"],
@@ -154,39 +141,6 @@ def convert_to_webp(
         return False
 
 
-def retro_input(prompt_msg, default=None):
-    border_color = CYAN
-    arrow_color = MAGENTA
-    prompt_color = YELLOW
-    block = f"{border_color}{BOLD}█{RESET}"
-    border = block * 25
-    print(f"\n{border}")
-    print(f"{block}{' ' * 3}{prompt_color}{prompt_msg}{RESET}")
-    if default:
-        print(
-            f"{block}{' ' * 3}{arrow_color}▶{RESET} Press Enter for default: {GREEN}{default}{RESET}"
-        )
-    print(f"{border}")
-    inp = input(f"{arrow_color}{BOLD}➤ {RESET}")
-    return inp.strip() if inp.strip() else (default if default is not None else None)
-
-
-def prompt_for_inputs():
-    msg = "Enter input image file(s) or a folder path (comma-separated for multiple files):"
-    files = retro_input(msg)
-    return [f.strip() for f in files.split(",") if f.strip()]
-
-
-def prompt_for_output(default_path):
-    msg = f"Enter output file path [default: {default_path}]"
-    out = retro_input(msg, default=default_path)
-    return out
-
-
-def prompt_for_directory(default_dir):
-    msg = f"Enter output directory for all files [default: {default_dir}]"
-    out = retro_input(msg, default=default_dir)
-    return out
 
 
 class RichProgressBar:
@@ -395,7 +349,6 @@ class WebPConverterCLI:
 
     def _process_files(self, files_to_convert, mode, quality, lossless, force):
         errors = []
-        from PIL import Image
 
         # Pre-filter files to check for overwrites before starting execution
         filtered_files = []
@@ -595,12 +548,6 @@ class WebPConverterCLI:
                             force=True,
                             quality=quality,
                             lossless=lossless,
-                        )
-                        self.console.print(
-                            Panel.fit(
-                                f"[green]Converted:[/green] {file_path} → {output_path}",
-                                border_style="green",
-                            )
                         )
                 except Exception as e:
                     self.console.print(

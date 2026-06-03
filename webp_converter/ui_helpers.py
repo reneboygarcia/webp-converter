@@ -1,3 +1,4 @@
+import os
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -22,8 +23,9 @@ def show_success(input_path, output_path, original_size, new_size, quality):
     table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="green")
-    table.add_row("Original", input_path)
-    table.add_row("WebP", output_path)
+    table.add_row("Original", os.path.basename(input_path))
+    table.add_row("WebP", os.path.basename(output_path))
+    table.add_row("Destination", os.path.dirname(os.path.abspath(output_path)))
     table.add_row("Original Size", format_size(original_size))
     table.add_row("WebP Size", format_size(new_size))
     table.add_row("Saved", f"{format_size(size_diff)} ({size_percent:.1f}%)")
