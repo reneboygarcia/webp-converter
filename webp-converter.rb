@@ -53,6 +53,7 @@ class WebpConverter < Formula
   end
 
   def install
+    ENV["MAX_CONCURRENCY"] = ENV.make_jobs.to_s
     virtualenv_install_with_resources
   end
 
