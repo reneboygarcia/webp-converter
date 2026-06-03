@@ -8,6 +8,7 @@ from rich.panel import Panel
 from tqdm import tqdm
 import questionary
 from questionary import Style
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from .ui_helpers import show_success, show_error, show_warning, show_info, ask_overwrite
 from .image_utils import save_image_with_transparency
 
@@ -74,6 +75,7 @@ def convert_to_webp_core(
     output_path: str,
     quality: int = 80,
     lossless: bool = False,
+    silent: bool = False,
 ) -> bool:
     """
     Core image-to-WebP conversion logic. No user interaction or file existence checks.
@@ -81,20 +83,23 @@ def convert_to_webp_core(
     """
     try:
         with Image.open(input_path) as img:
-            img = img.convert("RGBA")
+            if img.mode != "RGBA":
+                img = img.convert("RGBA")
             save_image_with_transparency(img, output_path, format="WEBP", lossless=lossless, quality=quality)
             original_size = os.path.getsize(input_path)
             new_size = os.path.getsize(output_path)
-            show_success(
-                os.path.basename(input_path),
-                os.path.basename(output_path),
-                original_size,
-                new_size,
-                quality,
-            )
+            if not silent:
+                show_success(
+                    os.path.basename(input_path),
+                    os.path.basename(output_path),
+                    original_size,
+                    new_size,
+                    quality,
+                )
             return True
     except Exception as e:
-        show_error(str(e), title="Conversion Error")
+        if not silent:
+            show_error(str(e), title="Conversion Error")
         return False
 
 def convert_to_webp(
@@ -103,18 +108,22 @@ def convert_to_webp(
     force: bool = False,
     quality: int = 80,
     lossless: bool = False,
+    silent: bool = False,
 ) -> bool:
     """
     Wrapper for image-to-WebP conversion. Handles file existence, output path, and user interaction.
     Returns True on success, False on error.
     """
     if not os.path.isfile(input_path):
-        show_error(f"Input file '{input_path}' does not exist.")
+        if not silent:
+            show_error(f"Input file '{input_path}' does not exist.")
         return False
     if not output_path:
         base = os.path.splitext(os.path.basename(input_path))[0]
         output_path = os.path.join(get_downloads_dir(), base + ".webp")
     if os.path.exists(output_path) and not force:
+        if silent:
+            return False
         if not ask_overwrite(os.path.basename(output_path)):
             show_info("Conversion skipped by user.", title="Skipped")
             return False
@@ -124,6 +133,7 @@ def convert_to_webp(
         output_path,
         quality=quality,
         lossless=lossless,
+        silent=silent,
     )
 
 
@@ -336,36 +346,90 @@ class WebPConverterCLI:
     def _process_files(self, files_to_convert, mode, quality, lossless, force):
         errors = []
         from PIL import Image
+
+        # Pre-filter files to check for overwrites before starting execution
+        filtered_files = []
+        if not force:
+            for file_path, output_path, action in files_to_convert:
+                if os.path.exists(output_path):
+                    if ask_overwrite(os.path.basename(output_path)):
+                        filtered_files.append((file_path, output_path, action))
+                else:
+                    filtered_files.append((file_path, output_path, action))
+            files_to_convert = filtered_files
+        
+        if not files_to_convert:
+            self.console.print("[yellow]No files to process (all skipped or already up to date).[/yellow]")
+            return
+
         def resize_and_save(input_path, output_path):
             try:
                 with Image.open(input_path) as img:
-                    img = img.copy()
                     img.save(output_path)
                 return True
             except Exception as e:
                 return str(e)
 
+        def process_single_resize(item):
+            file_path, output_path, action = item
+            try:
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                if action == 'copy':
+                    shutil.copy2(file_path, output_path)
+                    return ('copy', file_path, output_path, True)
+                else:
+                    result = resize_and_save(file_path, output_path)
+                    if result is True:
+                        return ('resize', file_path, output_path, True)
+                    else:
+                        return ('resize', file_path, output_path, result)
+            except Exception as e:
+                return ('error', file_path, output_path, str(e))
+
+        def process_single_convert(item):
+            file_path, output_path, action = item
+            try:
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                if action == 'copy':
+                    shutil.copy2(file_path, output_path)
+                    return ('copy', file_path, output_path, True)
+                else:
+                    # We pass force=True because overwrite has already been confirmed/pre-filtered,
+                    # and silent=True to prevent terminal output pollution.
+                    result = convert_to_webp(
+                        file_path,
+                        output_path,
+                        force=True,
+                        quality=quality,
+                        lossless=lossless,
+                        silent=True,
+                    )
+                    if result:
+                        return ('convert', file_path, output_path, True)
+                    else:
+                        return ('convert', file_path, output_path, "Conversion failed")
+            except Exception as e:
+                return ('error', file_path, output_path, str(e))
+
         if mode == "Resize Only (retain original format)":
             if len(files_to_convert) > 1:
+                copied_count = 0
+                resized_count = 0
                 with _create_progress_bar(len(files_to_convert)) as pbar:
-                    for file_path, output_path, action in files_to_convert:
-                        try:
-                            if action == 'copy':
-                                os.makedirs(os.path.dirname(output_path), exist_ok=True)
-                                shutil.copy2(file_path, output_path)
-                                self.console.print(
-                                    Panel.fit(
-                                        f"[yellow]Skipped (already WebP), copied to:[/yellow] {file_path} → {output_path}",
-                                        border_style="yellow",
-                                    )
-                                )
+                    max_workers = min(8, os.cpu_count() or 4)
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        futures = {executor.submit(process_single_resize, item): item for item in files_to_convert}
+                        for future in as_completed(futures):
+                            action_type, file_path, output_path, status = future.result()
+                            if status is not True:
+                                errors.append((file_path, status))
                             else:
-                                result = resize_and_save(file_path, output_path)
-                                if result is not True:
-                                    errors.append((file_path, result))
-                        except Exception as e:
-                            errors.append((file_path, str(e)))
-                        pbar.update(1)
+                                if action_type == 'copy':
+                                    copied_count += 1
+                                else:
+                                    resized_count += 1
+                            pbar.update(1)
+                
                 total = len(files_to_convert)
                 failed = len(errors)
                 succeeded = total - failed
@@ -373,33 +437,24 @@ class WebPConverterCLI:
                     fail_list = "\n".join(f"{os.path.basename(f)}: {e}" for f, e in errors)
                     summary = (
                         f"[yellow]Processed:[/yellow] {total}\n"
-                        f"[green]Successfully resized/copied:[/green] {succeeded}\n"
+                        f"[green]Successfully resized:[/green] {resized_count}\n"
+                        f"[yellow]Copied (WebP):[/yellow] {copied_count}\n"
                         f"[red]Failed:[/red] {failed}\n\n"
                         f"[red]Failed files:[/red]\n{fail_list}"
                     )
-                    self.console.print(
-                        Panel.fit(
-                            summary,
-                            border_style="red",
-                        )
-                    )
+                    self.console.print(Panel.fit(summary, border_style="red"))
                 else:
                     summary = (
                         f"[yellow]Processed:[/yellow] {total}\n"
                         f"[green]Successfully resized/copied:[/green] {total}\n"
                         f"[red]Failed:[/red] 0"
                     )
-                    self.console.print(
-                        Panel.fit(
-                            summary,
-                            border_style="green",
-                        )
-                    )
+                    self.console.print(Panel.fit(summary, border_style="green"))
             else:
                 file_path, output_path, action = files_to_convert[0]
                 try:
+                    os.makedirs(os.path.dirname(output_path), exist_ok=True)
                     if action == 'copy':
-                        os.makedirs(os.path.dirname(output_path), exist_ok=True)
                         shutil.copy2(file_path, output_path)
                         self.console.print(
                             Panel.fit(
@@ -426,70 +481,47 @@ class WebPConverterCLI:
                     )
         else:
             if len(files_to_convert) > 1:
+                converted_count = 0
+                copied_count = 0
                 with _create_progress_bar(len(files_to_convert)) as pbar:
-                    for file_path, output_path, action in files_to_convert:
-                        try:
-                            if action == 'copy':
-                                os.makedirs(os.path.dirname(output_path), exist_ok=True)
-                                shutil.copy2(file_path, output_path)
-                                self.console.print(
-                                    Panel.fit(
-                                        f"[yellow]Skipped (already WebP), copied to:[/yellow] {file_path} → {output_path}",
-                                        border_style="yellow",
-                                    )
-                                )
+                    max_workers = min(8, os.cpu_count() or 4)
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        futures = {executor.submit(process_single_convert, item): item for item in files_to_convert}
+                        for future in as_completed(futures):
+                            action_type, file_path, output_path, status = future.result()
+                            if status is not True:
+                                errors.append((file_path, status))
                             else:
-                                os.makedirs(os.path.dirname(output_path), exist_ok=True)
-                                convert_to_webp(
-                                    file_path,
-                                    output_path,
-                                    force=force,
-                                    quality=quality,
-                                    lossless=lossless,
-                                )
-                        except Exception as e:
-                            errors.append((file_path, str(e)))
-                        pbar.update(1)
+                                if action_type == 'copy':
+                                    copied_count += 1
+                                else:
+                                    converted_count += 1
+                            pbar.update(1)
+                
                 total = len(files_to_convert)
                 failed = len(errors)
-                succeeded = total - failed
-                # Calculate counts for summary
-                converted_count = sum(1 for _, _, a in files_to_convert if a == 'convert')
-                copied_count = sum(1 for _, _, a in files_to_convert if a == 'copy')
                 if errors:
                     fail_list = "\n".join(f"{os.path.basename(f)}: {e}" for f, e in errors)
                     summary = (
                         f"[yellow]Processed:[/yellow] {total}\n"
-                        f"[green]Successfully converted:[/green] {converted_count - failed}\n"
+                        f"[green]Successfully converted:[/green] {converted_count}\n"
                         f"[yellow]Copied (WebP):[/yellow] {copied_count}\n"
                         f"[red]Failed conversions:[/red] {failed}\n\n"
                         f"[red]Failed files:[/red]\n{fail_list}"
                     )
-                    self.console.print(
-                        Panel.fit(
-                            summary,
-                            border_style="red",
-                        )
-                    )
+                    self.console.print(Panel.fit(summary, border_style="red"))
                 else:
-                    # Calculate counts for summary
-                    converted_count = sum(1 for _, _, a in files_to_convert if a == 'convert')
-                    copied_count = sum(1 for _, _, a in files_to_convert if a == 'copy')
                     summary = (
                         f"[yellow]Processed:[/yellow] {total}\n"
                         f"[green]Successfully converted:[/green] {converted_count}\n"
                         f"[yellow]Copied (WebP):[/yellow] {copied_count}\n"
                         f"[red]Failed:[/red] 0"
                     )
-                    self.console.print(
-                        Panel.fit(
-                            summary,
-                            border_style="green",
-                        )
-                    )
+                    self.console.print(Panel.fit(summary, border_style="green"))
             else:
                 file_path, output_path, action = files_to_convert[0]
                 try:
+                    os.makedirs(os.path.dirname(output_path), exist_ok=True)
                     if action == 'copy':
                         shutil.copy2(file_path, output_path)
                         self.console.print(
@@ -502,7 +534,7 @@ class WebPConverterCLI:
                         convert_to_webp(
                             file_path,
                             output_path,
-                            force=force,
+                            force=True,
                             quality=quality,
                             lossless=lossless,
                         )
@@ -533,10 +565,11 @@ class WebPConverterCLI:
         """
         if input_root is None:
             input_root = directory
+        supported_exts = tuple(Image.registered_extensions().keys())
         for root, _, files in os.walk(directory):
             for file in files:
                 file_lower = file.lower()
-                if not file_lower.endswith(tuple(Image.registered_extensions().keys())):
+                if not file_lower.endswith(supported_exts):
                     continue
                 input_file = os.path.join(root, file)
                 if output_dir:

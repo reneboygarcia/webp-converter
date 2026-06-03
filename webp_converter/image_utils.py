@@ -14,7 +14,8 @@ def save_image_with_transparency(img, output_path, format="PNG", lossless=False,
         lossless (bool): If True, use lossless WebP. Default False (lossy, smaller).
         kwargs: Additional arguments for PIL save.
     """
-    img = img.convert("RGBA")
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
     if format.upper() == "WEBP":
         img.save(output_path, "WEBP", lossless=lossless, **kwargs)
     else:
