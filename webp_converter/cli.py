@@ -214,38 +214,55 @@ class WebPConverterCLI:
         )
 
     def main_menu(self):
-        while True:
-            choice = questionary.select(
-                "What would you like to do?",
-                choices=[
-                    "Convert images",
-                    "Show information",
-                    "Exit",
-                ],
-                use_indicator=True,
-                instruction="(Use ↑/↓ arrows and Enter to select, Esc to exit)",
-                qmark="🔹",
-                style=CUSTOM_STYLE,
-            ).ask()
+        try:
+            while True:
+                choice = questionary.select(
+                    "What would you like to do?",
+                    choices=[
+                        "Convert images",
+                        "Show information",
+                        "Exit",
+                    ],
+                    use_indicator=True,
+                    instruction="(Use ↑/↓ arrows and Enter to select, Esc to exit)",
+                    qmark="🔹",
+                    style=CUSTOM_STYLE,
+                ).ask()
 
-            if choice is None or choice == "Exit":
-                self.console.print("👋 Goodbye!", style="yellow")
-                sys.exit(0)
-            elif choice == "Convert images":
-                self.convert_images_workflow()
-            elif choice == "Show information":
-                self.show_info()
+                if choice is None or choice == "Exit":
+                    self.console.print("👋 Goodbye!", style="yellow")
+                    sys.exit(0)
+                elif choice == "Convert images":
+                    self.convert_images_workflow()
+                elif choice == "Show information":
+                    self.show_info()
+        except KeyboardInterrupt:
+            self.console.print("\n👋 Goodbye!", style="yellow")
+            sys.exit(0)
 
     def convert_images_workflow(self):
         input_path = self._get_input_path()
+        if input_path is None:
+            self.console.print("↩ Returned to main menu.", style="yellow")
+            return
         inputs = self._parse_inputs(input_path)
         if not self._validate_inputs_exist(inputs):
             self.console.print("[red]One or more input paths do not exist.[/red]")
             return
 
         output_dir = self._get_output_dir(inputs)
+        if output_dir is None:
+            self.console.print("↩ Returned to main menu.", style="yellow")
+            return
         mode = self._get_operation_mode()
-        quality, lossless, force = self._get_conversion_options(mode)
+        if mode is None:
+            self.console.print("↩ Returned to main menu.", style="yellow")
+            return
+        options = self._get_conversion_options(mode)
+        if options is None:
+            self.console.print("↩ Returned to main menu.", style="yellow")
+            return
+        quality, lossless, force = options
 
         files_to_convert = self._get_files_to_convert(inputs, output_dir, mode)
         if not files_to_convert:
@@ -269,6 +286,8 @@ class WebPConverterCLI:
             qmark="📂 ",
             style=CUSTOM_STYLE,
         ).ask()
+        if output_dir is None:
+            return None
         if not output_dir:
             output_dir = default_dir
         if not os.path.exists(output_dir):
@@ -300,15 +319,19 @@ class WebPConverterCLI:
                 qmark="🗜️ ",
                 style=CUSTOM_STYLE,
             ).ask()
+            if lossless_choice is None:
+                return None
             lossless = (lossless_choice.startswith("Lossless"))
-            quality = questionary.text(
+            quality_choice = questionary.text(
                 "WebP quality (0-100, default: 80):",
                 default="80",
                 validate=lambda val: val.isdigit() and 0 <= int(val) <= 100,
                 qmark="🎚️ ",
                 style=CUSTOM_STYLE,
             ).ask()
-            quality = int(quality or 80)
+            if quality_choice is None:
+                return None
+            quality = int(quality_choice or 80)
 
         force = questionary.confirm(
             "Overwrite output file(s) without prompting?",
@@ -316,6 +339,8 @@ class WebPConverterCLI:
             qmark="⚠️ ",
             style=CUSTOM_STYLE,
         ).ask()
+        if force is None:
+            return None
 
         return quality, lossless, force
 
@@ -634,9 +659,13 @@ def main():
         print("  webp-convert --help   Show this help message")
         sys.exit(0)
 
-    cli = WebPConverterCLI()
-    cli.show_welcome()
-    cli.main_menu()
+    try:
+        cli = WebPConverterCLI()
+        cli.show_welcome()
+        cli.main_menu()
+    except KeyboardInterrupt:
+        print("\n👋 Goodbye!")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

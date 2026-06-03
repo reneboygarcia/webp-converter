@@ -206,5 +206,42 @@ class TestCLIE2E(unittest.TestCase):
             main()
         self.assertEqual(cm.exception.code, 0)
 
+    @patch("webp_converter.cli.questionary.path")
+    @patch("webp_converter.cli.questionary.select")
+    def test_workflow_cancel_input_path(self, mock_select, mock_path):
+        mock_select.side_effect = [
+            make_mock_ask("Convert images"),
+            make_mock_ask("Exit")
+        ]
+        mock_path.return_value = make_mock_ask(None)
+
+        with self.assertRaises(SystemExit) as cm:
+            main()
+        self.assertEqual(cm.exception.code, 0)
+
+    @patch("webp_converter.cli.questionary.path")
+    @patch("webp_converter.cli.questionary.select")
+    def test_workflow_cancel_output_dir(self, mock_select, mock_path):
+        mock_select.side_effect = [
+            make_mock_ask("Convert images"),
+            make_mock_ask("Exit")
+        ]
+        mock_path.side_effect = [
+            make_mock_ask(self.sample_png),
+            make_mock_ask(None)
+        ]
+
+        with self.assertRaises(SystemExit) as cm:
+            main()
+        self.assertEqual(cm.exception.code, 0)
+
+    @patch("webp_converter.cli.questionary.select")
+    def test_keyboard_interrupt_graceful_exit(self, mock_select):
+        mock_select.side_effect = KeyboardInterrupt()
+
+        with self.assertRaises(SystemExit) as cm:
+            main()
+        self.assertEqual(cm.exception.code, 0)
+
 if __name__ == "__main__":
     unittest.main()
