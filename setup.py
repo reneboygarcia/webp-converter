@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='webp-converter',
-    version='0.1.6',
+    version='0.1.7',
     description='A simple CLI tool to convert images to WebP format.',
     author='eboygarcia',
     packages=find_packages(),
