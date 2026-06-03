@@ -32,6 +32,20 @@ RETRO_ASCII = """
                                                                                                      
 """
 
+RETRO_ASCII_SMALL = """
+██      ██  ███████  ██████   ██████ 
+██      ██  ██       ██   ██  ██   ██
+██  ██  ██  █████    ██████   ██████ 
+██  ██  ██  ██       ██   ██  ██     
+ ███  ███   ███████  ██████   ██     
+
+ ████   ████  ██  ██ ██  ██ ██████ █████  ██████ ██████ █████ 
+██     ██  ██ ███ ██ ██  ██ ██     ██  ██   ██   ██     ██  ██
+██     ██  ██ ██████  ████  ████   █████    ██   ████   █████ 
+██     ██  ██ ██ ███  ████  ██     ██ ██    ██   ██     ██ ██ 
+ ████   ████  ██  ██   ██   ██████ ██  ██   ██   ██████ ██  ██
+"""
+
 RETRO_BORDER = f"{CYAN}{BOLD}+{'-'*40}+{RESET}"
 
 def retro_print(msg, color=CYAN, border=True):
@@ -221,7 +235,13 @@ class WebPConverterCLI:
         self.console = Console()
 
     def show_welcome(self):
-        self.console.print(f"[bold cyan]{RETRO_ASCII}[/bold cyan]")
+        terminal_width = self.console.width
+        if terminal_width >= 105:
+            self.console.print(f"[bold cyan]{RETRO_ASCII}[/bold cyan]", soft_wrap=True)
+        elif terminal_width >= 66:
+            self.console.print(f"[bold cyan]{RETRO_ASCII_SMALL}[/bold cyan]", soft_wrap=True)
+        else:
+            self.console.print("[bold cyan]⚡ WEBP CONVERTER ⚡[/bold cyan]\n")
         self.console.print(
             Panel.fit(
                 "Convert images to WebP with style!\n\n"
