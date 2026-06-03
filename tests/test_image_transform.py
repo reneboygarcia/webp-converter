@@ -55,5 +55,35 @@ class TestImageTransform(unittest.TestCase):
             self.assertTrue(os.path.exists(f))
             self.assertTrue(f.endswith(".png"))
 
+    def test_transform_logo_file_not_found(self):
+        output_path = transform_logo(
+            os.path.join(self.input_dir, "ghost.png"),
+            self.output_dir
+        )
+        self.assertIsNone(output_path)
+
+    def test_transform_logo_invalid_format(self):
+        text_file = os.path.join(self.input_dir, "not_an_image.txt")
+        with open(text_file, "w") as f:
+            f.write("Just some text")
+        output_path = transform_logo(
+            text_file,
+            self.output_dir
+        )
+        self.assertIsNone(output_path)
+
+    def test_transform_logo_zero_dimension(self):
+        from unittest.mock import patch, MagicMock
+        with patch("PIL.Image.open") as mock_open:
+            mock_img = MagicMock()
+            mock_img.size = (0, 100)
+            mock_img.convert.return_value = mock_img
+            mock_open.return_value.__enter__.return_value = mock_img
+            output_path = transform_logo(
+                "zero_width_image.png",
+                self.output_dir
+            )
+            self.assertIsNone(output_path)
+
 if __name__ == "__main__":
     unittest.main()

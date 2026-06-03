@@ -367,9 +367,13 @@ class WebPConverterCLI:
 
     def _get_files_to_convert(self, inputs, output_dir, mode):
         files_to_convert = []
+        is_resize_only = mode.startswith("Resize Only") if mode else False
         for input_path in inputs:
             if os.path.isdir(input_path):
                 for input_file, output_file, is_webp in self._get_image_files_from_dir(input_path, output_dir, input_path):
+                    if is_resize_only and not is_webp:
+                        orig_ext = os.path.splitext(input_file)[1]
+                        output_file = os.path.splitext(output_file)[0] + orig_ext
                     if is_webp:
                         files_to_convert.append((input_file, output_file, 'copy'))
                     else:
@@ -381,7 +385,10 @@ class WebPConverterCLI:
                     output_file = os.path.join(output_dir, rel_name)
                     files_to_convert.append((input_path, output_file, 'copy'))
                 else:
-                    rel_name = os.path.splitext(os.path.basename(input_path))[0] + '.webp'
+                    if is_resize_only:
+                        rel_name = os.path.basename(input_path)
+                    else:
+                        rel_name = os.path.splitext(os.path.basename(input_path))[0] + '.webp'
                     output_file = os.path.join(output_dir, rel_name)
                     files_to_convert.append((input_path, output_file, 'convert'))
         return files_to_convert
@@ -607,6 +614,8 @@ class WebPConverterCLI:
         return [f.strip() for f in input_path.split(",") if f.strip()]
 
     def _validate_inputs_exist(self, inputs):
+        if not inputs:
+            return False
         return all(os.path.exists(p) for p in inputs)
 
     def _get_image_files_from_dir(self, directory, output_dir=None, input_root=None):

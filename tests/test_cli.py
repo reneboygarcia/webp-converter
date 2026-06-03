@@ -97,5 +97,35 @@ class TestCLI(unittest.TestCase):
         self.assertFalse(paths["pic1.jpg"][2]) # is_webp=False
         self.assertTrue(paths["pic2.webp"][2]) # is_webp=True
 
+    def test_cli_helper_parse_inputs_empty(self):
+        cli = WebPConverterCLI()
+        self.assertEqual(cli._parse_inputs(""), [])
+        self.assertEqual(cli._parse_inputs("  ,  "), [])
+        self.assertEqual(cli._parse_inputs("file.png, , file2.jpg"), ["file.png", "file2.jpg"])
+
+    def test_cli_helper_validate_inputs_exist_empty(self):
+        cli = WebPConverterCLI()
+        self.assertFalse(cli._validate_inputs_exist([]))
+        self.assertFalse(cli._validate_inputs_exist([""]))
+
+    def test_cli_get_downloads_dir(self):
+        from webp_converter.cli import get_downloads_dir
+        downloads = get_downloads_dir()
+        self.assertTrue(isinstance(downloads, str))
+        self.assertTrue(len(downloads) > 0)
+
+    def test_convert_to_webp_invalid_image(self):
+        txt_file = os.path.join(self.temp_dir, "invalid.txt")
+        with open(txt_file, "w") as f:
+            f.write("Not an image")
+        out_webp = os.path.join(self.temp_dir, "invalid.webp")
+        success = convert_to_webp(txt_file, out_webp, silent=True)
+        self.assertFalse(success)
+
+    def test_convert_to_webp_silent_mode(self):
+        # When silent is true, convert_to_webp returns False and does not print or raise
+        success = convert_to_webp("non_existent_file.png", "out.webp", silent=True)
+        self.assertFalse(success)
+
 if __name__ == "__main__":
     unittest.main()
