@@ -29,6 +29,6 @@ homebrew-tap/
 webp-converter-*.tar.gz
 
 # Others
-# .scripts
-
+.scripts
+/docs
 
