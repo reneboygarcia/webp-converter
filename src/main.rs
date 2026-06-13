@@ -1,21 +1,60 @@
 use anyhow::Result;
 use clap::Parser;
 use console::style;
+use inquire::ui::{Color, RenderConfig, StyleSheet, Styled};
 use std::path::PathBuf;
 use webp_converter::{
     collect_image_files, convert_to_webp, get_downloads_dir, process_batch, show_batch_summary,
     show_error, show_goodbye, show_info, show_success, ConversionOptions, OperationMode,
 };
 
-const BANNER: &str = r#"
- ██╗    ██╗███████╗██████╗ ██████╗      ██████╗ ██████╗ ███╗   ██╗██╗   ██╗
- ██║    ██║██╔════╝██╔══██╗██╔══██╗    ██╔════╝██╔═══██╗████╗  ██║██║   ██║
- ██║ █╗ ██║█████╗  ██████╔╝██████╔╝    ██║     ██║   ██║██╔██╗ ██║██║   ██║
- ██║███╗██║██╔══╝  ██╔══██╗██╔═══╝     ██║     ██║   ██║██║╚██╗██║╚██╗ ██╔╝
- ╚███╔███╔╝███████╗██████╔╝██║         ╚██████╗╚██████╔╝██║ ╚████║ ╚████╔╝
-  ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝          ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝  ╚═══╝
-                    Fast WebP conversion — Powered by Rust
-"#;
+// Pure-ASCII banner (toilet -f ascii9 "WEBP CONV") — 63 cols, no Unicode ambiguous chars
+const BANNER_LINES: &[&str] = &[
+    "m     m mmmmmm mmmmm  mmmmm           mmm   mmmm  mm   m m    m",
+    "#  #  # #      #    # #   \"#        m\"   \" m\"  \"m #\"m  # \"m  m\"",
+    "\" #\"# # #mmmmm #mmmm\" #mmm#\"        #      #    # # #m #  #  #",
+    " ## ##\" #      #    # #             #      #    # #  # #  \"mm\"",
+    " #   #  #mmmmm #mmmm\" #              \"mmm\"  #mm#  #   ##   ##",
+];
+
+// Mint teal — matches Python questionary CUSTOM_STYLE
+const MINT: u8 = 43;
+// Dim gray — for banner second half and help text
+const DIM_GRAY: u8 = 243;
+// Amber — for highlighting / answer
+const AMBER: u8 = 214;
+
+fn print_banner() {
+    println!();
+    for line in BANNER_LINES {
+        // Split at char 30: first half gets mint, second half gets dim gray
+        let split = std::cmp::min(30, line.len());
+        let (a, b) = line.split_at(split);
+        print!("{}", style(a).bold().color256(MINT));
+        println!("{}", style(b).color256(DIM_GRAY));
+    }
+    let version = env!("CARGO_PKG_VERSION");
+    println!(
+        "  {} {}",
+        style("Fast WebP conversion — Powered by Rust").color256(DIM_GRAY),
+        style(format!("v{version}")).color256(DIM_GRAY).dim(),
+    );
+    println!();
+}
+
+fn make_render_config() -> RenderConfig<'static> {
+    RenderConfig {
+        prompt_prefix: Styled::new("?").with_fg(Color::AnsiValue(MINT)),
+        answered_prompt_prefix: Styled::new("✔").with_fg(Color::AnsiValue(MINT)),
+        highlighted_option_prefix: Styled::new(">").with_fg(Color::AnsiValue(MINT)),
+        selected_option: Some(StyleSheet::new().with_fg(Color::AnsiValue(MINT))),
+        answer: StyleSheet::new().with_fg(Color::AnsiValue(AMBER)),
+        help_message: StyleSheet::new().with_fg(Color::AnsiValue(DIM_GRAY)),
+        default_value: StyleSheet::new().with_fg(Color::AnsiValue(DIM_GRAY)),
+        placeholder: StyleSheet::new().with_fg(Color::AnsiValue(DIM_GRAY)),
+        ..RenderConfig::default()
+    }
+}
 
 #[derive(Parser)]
 #[command(
@@ -50,6 +89,8 @@ struct Args {
 }
 
 fn main() -> Result<()> {
+    inquire::set_global_render_config(make_render_config());
+
     let args = Args::parse();
 
     // Non-interactive batch mode when --input is supplied
@@ -76,13 +117,14 @@ fn main() -> Result<()> {
 }
 
 fn run_interactive() -> Result<()> {
-    println!("{}", style(BANNER).cyan());
+    print_banner();
 
     loop {
         let choice = inquire::Select::new(
             "What would you like to do?",
             vec!["Convert images to WebP", "Show information", "Exit"],
         )
+        .with_help_message("↑↓ to move, enter to select")
         .prompt();
 
         match choice {
@@ -92,12 +134,10 @@ fn run_interactive() -> Result<()> {
                 }
             }
             Ok("Show information") => {
+                let version = env!("CARGO_PKG_VERSION");
                 show_info(
-                    concat!(
-                        "webp-converter v0.2.0\n",
-                        "Rewritten in Rust for speed and efficiency.\n",
-                        "Converts PNG/JPG/BMP/TIFF/GIF to WebP.\n",
-                        "GitHub: github.com/reneboygarcia/webp-converter"
+                    &format!(
+                        "webp-converter v{version}\nRewritten in Rust for speed and efficiency.\nConverts PNG/JPG/BMP/TIFF/GIF to WebP.\nGitHub: github.com/reneboygarcia/webp-converter"
                     ),
                     "About webp-converter",
                 );
@@ -114,7 +154,6 @@ fn run_interactive() -> Result<()> {
 }
 
 fn run_conversion_workflow() -> Result<()> {
-    // Input path(s)
     let input_str =
         inquire::Text::new("Enter input path(s) — file or directory (comma-separated):")
             .with_help_message("Press ESC to cancel")
@@ -139,14 +178,12 @@ fn run_conversion_workflow() -> Result<()> {
         return Ok(());
     }
 
-    // Output directory
     let default_out = get_downloads_dir().to_string_lossy().to_string();
     let output_str = inquire::Text::new("Output directory:")
         .with_default(&default_out)
         .prompt()?;
     let output_dir = PathBuf::from(output_str.trim());
 
-    // Operation mode
     let mode_str = inquire::Select::new(
         "Operation mode:",
         vec!["Convert to WebP", "Resize Only (retain original format)"],
@@ -197,12 +234,11 @@ fn run_conversion_workflow() -> Result<()> {
     }
 
     println!(
-        "\n{} {} files...\n",
-        style("Processing").cyan(),
-        files.len()
+        "\n{}  {} files...\n",
+        style("Processing").color256(MINT).bold(),
+        style(files.len()).color256(AMBER).bold(),
     );
 
-    // For single-file interactive, show detailed success panel
     if files.len() == 1 {
         let (src, dst, _action) = &files[0];
         match convert_to_webp(
