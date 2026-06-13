@@ -9,13 +9,15 @@ use webp_converter::{
 };
 
 const BANNER_LINES: &[&str] = &[
-    " ██╗    ██╗███████╗██████╗ ██████╗      ██████╗ ██████╗ ███╗   ██╗██╗   ██╗",
-    " ██║    ██║██╔════╝██╔══██╗██╔══██╗    ██╔════╝██╔═══██╗████╗  ██║██║   ██║",
-    " ██║ █╗ ██║█████╗  ██████╔╝██████╔╝    ██║     ██║   ██║██╔██╗ ██║██║   ██║",
-    " ██║███╗██║██╔══╝  ██╔══██╗██╔═══╝     ██║     ██║   ██║██║╚██╗██║╚██╗ ██╔╝",
-    " ╚███╔███╔╝███████╗██████╔╝██║         ╚██████╗╚██████╔╝██║ ╚████║ ╚████╔╝ ",
-    "  ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝          ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝  ╚═══╝ ",
+    "░██╗░░░░░░░██╗███████╗██████╗░██████╗░  ░█████╗░███╗░░██╗██╗░░░██╗████████╗██████╗░",
+    "░██║░░██╗░░██║██╔════╝██╔══██╗██╔══██╗  ██╔══██╗████╗░██║██║░░░██║╚══██╔══╝██╔══██╗",
+    "░╚██╗████╗██╔╝█████╗░░██████╦╝██████╔╝  ██║░░╚═╝██╔██╗██║╚██╗░██╔╝░░░██║░░░██████╔╝",
+    "░░████╔═████║░██╔══╝░░██╔══██╗██╔═══╝░  ██║░░██╗██║╚████║░╚████╔╝░░░░██║░░░██╔══██╗",
+    "░░╚██╔╝░╚██╔╝░███████╗██████╦╝██║░░░░░  ╚█████╔╝██║░╚███║░░╚██╔╝░░░░░██║░░░██║░░██║",
+    "░░░╚═╝░░░╚═╝░░╚══════╝╚═════╝░╚═╝░░░░░  ░╚════╝░╚═╝░░╚══╝░░░╚═╝░░░░░░╚═╝░░░╚═╝░░╚═╝",
 ];
+// Char index where the two-space gap splits "WEBP" from "CNVTR"
+const BANNER_SPLIT: usize = 38;
 
 // Dim gray — for banner second half and help text
 const DIM_GRAY: u8 = 243;
@@ -25,11 +27,15 @@ const AMBER: u8 = 214;
 fn print_banner() {
     println!();
     for line in BANNER_LINES {
-        // Split at char 30: first half gets mint, second half gets dim gray
-        let split = std::cmp::min(30, line.len());
-        let (a, b) = line.split_at(split);
+        // Split at BANNER_SPLIT chars: WEBP bold sky, CNVTR dim sky
+        let split_byte = line
+            .char_indices()
+            .nth(BANNER_SPLIT)
+            .map(|(i, _)| i)
+            .unwrap_or(line.len());
+        let (a, b) = line.split_at(split_byte);
         print!("{}", style(a).bold().color256(SKY));
-        println!("{}", style(b).color256(DIM_GRAY));
+        println!("{}", style(b).color256(SKY).dim());
     }
     let version = env!("CARGO_PKG_VERSION");
     println!(
