@@ -6,13 +6,15 @@ const LABEL_WIDTH: usize = 16;
 const MIN_BOX: usize = 44;
 const MAX_BOX: usize = 84;
 
+// Sky blue — #5fd7ff, matches docs/banner.png
+pub const SKY: u8 = 81;
+
 // ── Terminal helpers ─────────────────────────────────────────
 
 fn term_cols() -> usize {
     Term::stdout().size().1 as usize
 }
 
-/// Truncate from the LEFT so the filename tail is preserved: "…/Downloads/file.webp"
 fn truncate_path(s: &str, max: usize) -> String {
     if measure_text_width(s) <= max {
         return s.to_string();
@@ -36,18 +38,12 @@ pub fn fmt_size(bytes: u64) -> String {
 }
 
 // ── Dynamic-width box drawing ────────────────────────────────
-//
-// Strategy: callers collect plain content strings, pass them to `panel_width()`
-// to get the box width, then render. This ensures top/separator/bottom lines
-// always match the content lines — no shifting regardless of path length.
 
-/// Compute box width from a slice of visible-width content strings.
-/// Result is clamped to [MIN_BOX, min(MAX_BOX, term_cols - 2)].
 fn panel_width(contents: &[String]) -> usize {
     let max_term = term_cols().saturating_sub(2).max(MIN_BOX);
     let natural = contents
         .iter()
-        .map(|s| measure_text_width(s) + 4) // 4 = "│ " + " │"
+        .map(|s| measure_text_width(s) + 4)
         .max()
         .unwrap_or(MIN_BOX);
     natural.clamp(MIN_BOX, max_term.min(MAX_BOX))
@@ -70,7 +66,6 @@ fn box_sep(w: usize) -> String {
     format!("├{}┤", "─".repeat(w - 2))
 }
 
-/// Full-width content line, padded to fit the box.
 fn box_line(content: &str, w: usize) -> String {
     let inner = w - 2;
     let padded = format!(" {} ", content);
@@ -79,18 +74,16 @@ fn box_line(content: &str, w: usize) -> String {
     format!("│{}{}│", padded, " ".repeat(pad))
 }
 
-/// Two-tone key/value line: cyan label + bold value, green border.
-/// Prints directly because mixing ANSI + width-padding requires split print!/println!.
+/// Two-tone key/value line: dim sky label + bold white value, sky border.
 fn print_kv(label: &str, value: &str, w: usize) {
     let inner = w - 2;
     let label_col = format!("{:<lw$}", label, lw = LABEL_WIDTH);
-    // visible content = " " + label_col + value + " "
     let content_vis = 1 + LABEL_WIDTH + measure_text_width(value) + 1;
     let pad = inner.saturating_sub(content_vis);
-    print!("{}", style("│").green());
-    print!(" {}", style(&label_col).cyan());
-    print!("{}", style(value).green().bold());
-    println!("{}{}", " ".repeat(pad), style("│").green());
+    print!("{}", style("│").color256(SKY));
+    print!(" {}", style(&label_col).color256(SKY));
+    print!("{}", style(value).bold().white());
+    println!("{}{}", " ".repeat(pad), style("│").color256(SKY));
 }
 
 // ── Public panel API ─────────────────────────────────────────
@@ -116,8 +109,12 @@ pub fn show_success(input_path: &Path, output_path: &Path, metrics: &ConversionM
         .map(|p| p.display().to_string())
         .unwrap_or_default();
 
-    // Compute max value width so we can size the box and truncate destination if needed.
-    let size_line = format!("{} → {} (saved {:.1}%)", fmt_size(metrics.original_size), fmt_size(metrics.new_size), pct);
+    let size_line = format!(
+        "{} → {} (saved {:.1}%)",
+        fmt_size(metrics.original_size),
+        fmt_size(metrics.new_size),
+        pct
+    );
     let max_val_vis = [
         measure_text_width(&input_name),
         measure_text_width(&output_name),
@@ -128,26 +125,32 @@ pub fn show_success(input_path: &Path, output_path: &Path, metrics: &ConversionM
     .max()
     .unwrap_or(0);
 
-    // Box width from worst-case content
-    let contents: Vec<String> = vec![
-        format!("{:<lw$}{}", "x", "x".repeat(max_val_vis), lw = LABEL_WIDTH),
-    ];
+    let contents: Vec<String> = vec![format!(
+        "{:<lw$}{}",
+        "x",
+        "x".repeat(max_val_vis),
+        lw = LABEL_WIDTH
+    )];
     let w = panel_width(&contents);
 
-    // Available value width after "│ label " prefix
-    let val_max = w - 4 - LABEL_WIDTH; // 4 = "│ " + " │"
+    let val_max = w - 4 - LABEL_WIDTH;
     let dest = truncate_path(&dest_raw, val_max);
 
-    println!("{}", style(box_top("✓ Conversion Successful!", w)).bold().green());
+    println!(
+        "{}",
+        style(box_top("✓ Conversion Successful!", w))
+            .bold()
+            .color256(SKY)
+    );
     print_kv("Original", &input_name, w);
     print_kv("WebP", &output_name, w);
     print_kv("Destination", &dest, w);
-    println!("{}", style(box_sep(w)).green());
+    println!("{}", style(box_sep(w)).color256(SKY));
     print_kv("Original size", &fmt_size(metrics.original_size), w);
     print_kv("WebP size", &fmt_size(metrics.new_size), w);
     print_kv("Saved", &format!("{} ({:.1}%)", fmt_size(saved), pct), w);
     print_kv("Quality", &metrics.quality.to_string(), w);
-    println!("{}", style(box_bottom(w)).green());
+    println!("{}", style(box_bottom(w)).color256(SKY));
 }
 
 pub fn show_batch_summary(result: &BatchResult) {
@@ -181,7 +184,7 @@ pub fn show_batch_summary(result: &BatchResult) {
         if has_errors {
             println!("{}", style(s).red());
         } else {
-            println!("{}", style(s).green());
+            println!("{}", style(s).color256(SKY));
         }
     };
 
@@ -227,15 +230,15 @@ pub fn show_info(message: &str, title: &str) {
     let t = format!("ℹ   {}", title);
     let lines: Vec<String> = message.lines().map(|l| l.to_string()).collect();
     let w = panel_width(&lines);
-    println!("{}", style(box_top(&t, w)).bold().blue());
+    println!("{}", style(box_top(&t, w)).bold().color256(SKY));
     for line in &lines {
-        println!("{}", style(box_line(line, w)).blue());
+        println!("{}", style(box_line(line, w)).color256(SKY));
     }
-    println!("{}", style(box_bottom(w)).blue());
+    println!("{}", style(box_bottom(w)).color256(SKY));
 }
 
 pub fn show_goodbye() {
-    println!("\n{}", style("✌️  Later!").bold().yellow());
+    println!("\n{}", style("✌️  Later!").bold().color256(SKY));
 }
 
 pub fn ask_overwrite(filename: &str) -> bool {

@@ -5,7 +5,7 @@ use inquire::ui::{Color, RenderConfig, StyleSheet, Styled};
 use std::path::PathBuf;
 use webp_converter::{
     collect_image_files, convert_to_webp, get_downloads_dir, process_batch, show_batch_summary,
-    show_error, show_goodbye, show_info, show_success, ConversionOptions, OperationMode,
+    show_error, show_goodbye, show_info, show_success, ConversionOptions, OperationMode, SKY,
 };
 
 const BANNER_LINES: &[&str] = &[
@@ -17,11 +17,9 @@ const BANNER_LINES: &[&str] = &[
     "  ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝          ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝  ╚═══╝ ",
 ];
 
-// Mint teal — matches Python questionary CUSTOM_STYLE
-const MINT: u8 = 43;
 // Dim gray — for banner second half and help text
 const DIM_GRAY: u8 = 243;
-// Amber — for highlighting / answer
+// Amber — for answers / highlights
 const AMBER: u8 = 214;
 
 fn print_banner() {
@@ -30,13 +28,13 @@ fn print_banner() {
         // Split at char 30: first half gets mint, second half gets dim gray
         let split = std::cmp::min(30, line.len());
         let (a, b) = line.split_at(split);
-        print!("{}", style(a).bold().color256(MINT));
+        print!("{}", style(a).bold().color256(SKY));
         println!("{}", style(b).color256(DIM_GRAY));
     }
     let version = env!("CARGO_PKG_VERSION");
     println!(
         "  {} {}",
-        style("Fast WebP conversion — Powered by Rust").color256(DIM_GRAY),
+        style("Fast WebP conversion — Powered by Rust").color256(SKY).dim(),
         style(format!("v{version}")).color256(DIM_GRAY).dim(),
     );
     println!();
@@ -44,10 +42,10 @@ fn print_banner() {
 
 fn make_render_config() -> RenderConfig<'static> {
     RenderConfig {
-        prompt_prefix: Styled::new("?").with_fg(Color::AnsiValue(MINT)),
-        answered_prompt_prefix: Styled::new("✔").with_fg(Color::AnsiValue(MINT)),
-        highlighted_option_prefix: Styled::new(">").with_fg(Color::AnsiValue(MINT)),
-        selected_option: Some(StyleSheet::new().with_fg(Color::AnsiValue(MINT))),
+        prompt_prefix: Styled::new("?").with_fg(Color::AnsiValue(SKY)),
+        answered_prompt_prefix: Styled::new("✔").with_fg(Color::AnsiValue(SKY)),
+        highlighted_option_prefix: Styled::new(">").with_fg(Color::AnsiValue(SKY)),
+        selected_option: Some(StyleSheet::new().with_fg(Color::AnsiValue(SKY))),
         answer: StyleSheet::new().with_fg(Color::AnsiValue(AMBER)),
         help_message: StyleSheet::new().with_fg(Color::AnsiValue(DIM_GRAY)),
         default_value: StyleSheet::new().with_fg(Color::AnsiValue(DIM_GRAY)),
@@ -235,7 +233,7 @@ fn run_conversion_workflow() -> Result<()> {
 
     println!(
         "\n{}  {} files...\n",
-        style("Processing").color256(MINT).bold(),
+        style("Processing").color256(SKY).bold(),
         style(files.len()).color256(AMBER).bold(),
     );
 
