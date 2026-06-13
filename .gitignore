@@ -1,5 +1,9 @@
-# Virtual environment
+# Virtual environments
 venv
+venv_*/
+
+# Rust build artifacts
+/target/
 
 # Build files
 __pycache__
