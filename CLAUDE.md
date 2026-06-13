@@ -56,6 +56,9 @@ cargo test
 
 ## Release Checklist
 
+> [!IMPORTANT]
+> This Homebrew tap release workflow **MUST be executed after every code modification or feature update**. The tap formula should always be kept up-to-date with the main repository.
+
 Follow this order exactly before every release:
 
 ### 1. Pre-flight
@@ -94,8 +97,8 @@ curl -sL "https://github.com/reneboygarcia/webp-converter/archive/refs/tags/vX.Y
 ```
 
 ### 6. Update the Homebrew tap (separate repo)
-The tap formula lives in **`homebrew-tap`**, not in this repo.
-Local path: `/opt/homebrew/Library/Taps/reneboygarcia/homebrew-tap/Formula/webp-converter.rb`
+The tap formula lives in the **`homebrew-tap`** repository.
+Local path: `homebrew-tap/Formula/webp-converter.rb` (nested clone in workspace) or `/opt/homebrew/Library/Taps/reneboygarcia/homebrew-tap/Formula/webp-converter.rb`
 
 Update both fields:
 ```ruby

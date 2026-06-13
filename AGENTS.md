@@ -27,25 +27,43 @@ Welcome, AI agent! This repository contains a Python command-line utility for co
 
 ## Maintenance & Update Workflow
 
+> [!IMPORTANT]
+> This Homebrew tap release workflow **MUST be executed after every code modification or feature update**. The tap formula should always be kept up-to-date with the main repository.
+
 When performing modifications to the codebase:
 
 1.  Make the required code edits.
-2.  Install and verify the tool locally:
+2.  Build and verify the tool locally:
     ```bash
-    pip install .
-    webp-convert --help
+    cargo build --release
+    ./target/release/webp-convert --help
+    cargo test
     ```
-3.  Commit and push to `main` in `webp_converter`.
-4.  Tag the version (e.g. `v0.1.1`) and push:
+3.  Bump version in `Cargo.toml` and compile to update `Cargo.lock`.
+4.  Commit and push to `main` on GitHub:
+    ```bash
+    git add .
+    git commit -m "..."
+    git push origin main
+    ```
+5.  Tag the version (e.g. `v0.2.7`) and push:
     ```bash
     git tag vX.Y.Z
     git push origin vX.Y.Z
     ```
-5.  Recalculate the archive SHA-256:
+6.  Recalculate the archive SHA-256:
     ```bash
-    curl -sSL https://github.com/reneboygarcia/webp-converter/archive/refs/tags/vX.Y.Z.tar.gz -o webp-converter.tar.gz
-    shasum -a 256 webp-converter.tar.gz
+    curl -sSL "https://github.com/reneboygarcia/webp-converter/archive/refs/tags/vX.Y.Z.tar.gz" | shasum -a 256
     ```
-6.  If package dependencies have changed, run `scratch/generate_resources.py` to regenerate the resource stanzas.
-7.  Update the formula file inside the `homebrew-tap` repository under `Formula/webp-converter.rb` with the new URL, checksum, and resources.
-8.  Push the updated formula to `reneboygarcia/homebrew-tap` on GitHub.
+7.  Update the formula file `Formula/webp-converter.rb` in the `homebrew-tap` repository (cloned under `homebrew-tap/`) with the new URL and checksum.
+8.  Stage, commit, and push the updated formula to `reneboygarcia/homebrew-tap` on GitHub:
+    ```bash
+    git -C homebrew-tap add Formula/webp-converter.rb
+    git -C homebrew-tap commit -m "bump webp-converter to vX.Y.Z"
+    git -C homebrew-tap push origin main
+    ```
+9.  Verify the local Homebrew formula is updated:
+    ```bash
+    brew update
+    brew upgrade reneboygarcia/homebrew-tap/webp-converter
+    ```
