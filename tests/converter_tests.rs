@@ -480,3 +480,26 @@ fn test_batch_result_counts() {
     let outputs = find_webp_files(out_dir.path());
     assert_eq!(outputs.len(), 2, "Two WebP files should be produced");
 }
+
+#[test]
+fn test_batch_result_details() {
+    let dir = TempDir::new().unwrap();
+    make_png(&dir, "a.png");
+    make_jpeg(&dir, "b.jpg");
+
+    let out_dir = TempDir::new().unwrap();
+    let files = collect_image_files(
+        &[dir.path().to_path_buf()],
+        out_dir.path(),
+        OperationMode::ConvertToWebP,
+    );
+
+    let result = process_batch(files, &default_opts());
+    assert_eq!(result.details.len(), 2);
+    for detail in &result.details {
+        assert!(detail.original_size > 0);
+        assert!(detail.new_size > 0);
+        assert_eq!(detail.action, FileAction::Convert);
+        assert!(detail.error.is_none());
+    }
+}

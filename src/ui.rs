@@ -1,6 +1,6 @@
-use crate::converter::{BatchResult, ConversionMetrics};
+use crate::converter::{BatchResult, ConversionMetrics, FileAction, FileConversionResult};
 use console::{measure_text_width, style, Term};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const LABEL_WIDTH: usize = 16;
 const MIN_BOX: usize = 44;
@@ -204,6 +204,110 @@ pub fn show_batch_summary(result: &BatchResult) {
     }
 
     print_line(box_bottom(w));
+}
+
+pub fn show_detailed_log(details: &[FileConversionResult]) {
+    let title = "Detailed Conversion Log";
+    let w = panel_width(
+        &details
+            .iter()
+            .map(|item| {
+                let rel_src = item
+                    .src
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                format!(
+                    "{}: {}",
+                    rel_src,
+                    item.error.as_deref().unwrap_or("success")
+                )
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::new());
+    let inner_w = w.saturating_sub(6); // leaves room for borders and spaces
+
+    let has_errors = details.iter().any(|r| r.error.is_some());
+    let print_border = |s: String| {
+        if has_errors {
+            println!("{}", style(s).red());
+        } else {
+            println!("{}", style(s).color256(SKY));
+        }
+    };
+
+    print_border(box_top(title, w));
+
+    for item in details {
+        let rel_src = item.src.strip_prefix(&cwd).unwrap_or(&item.src);
+        let src_name = rel_src.display().to_string();
+
+        let (icon, prefix_len) = match &item.error {
+            None => match item.action {
+                FileAction::Convert => (style("✓").green().bold(), 2),
+                FileAction::Copy => (style("→").color256(SKY).bold(), 2),
+                FileAction::Resize => (style("⚙").yellow().bold(), 2),
+            },
+            Some(_) => (style("✗").red().bold(), 2),
+        };
+
+        let info_str = match &item.error {
+            None => {
+                let pct = if item.original_size > 0 {
+                    100.0 - (item.new_size as f64 / item.original_size as f64 * 100.0)
+                } else {
+                    0.0
+                };
+
+                match item.action {
+                    FileAction::Convert => {
+                        format!(
+                            " {} → {} (saved {:.1}%)",
+                            fmt_size(item.original_size),
+                            fmt_size(item.new_size),
+                            pct
+                        )
+                    }
+                    FileAction::Copy => {
+                        format!(" (copied, {})", fmt_size(item.original_size))
+                    }
+                    FileAction::Resize => {
+                        format!(
+                            " {} → {} (resized)",
+                            fmt_size(item.original_size),
+                            fmt_size(item.new_size)
+                        )
+                    }
+                }
+            }
+            Some(err) => {
+                format!(" (failed: {})", err)
+            }
+        };
+
+        // Calculate max filename length to fit in the box line
+        let info_len = measure_text_width(&info_str);
+        let max_filename_len = inner_w.saturating_sub(prefix_len + 1 + info_len);
+
+        let display_name = if measure_text_width(&src_name) > max_filename_len {
+            truncate_path(&src_name, max_filename_len)
+        } else {
+            src_name
+        };
+
+        let display_name_styled = if item.error.is_some() {
+            style(display_name).dim()
+        } else {
+            style(display_name).white()
+        };
+
+        let line_content = format!("{} {} {}", icon, display_name_styled, info_str);
+        println!("{}", box_line(&line_content, w));
+    }
+
+    print_border(box_bottom(w));
 }
 
 pub fn show_error(message: &str, title: &str) {

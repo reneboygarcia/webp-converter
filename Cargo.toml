@@ -1,6 +1,6 @@
 [package]
 name = "webp-converter"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2021"
 description = "A CLI tool to convert images to WebP format — Rust rewrite"
 authors = ["reneboygarcia"]

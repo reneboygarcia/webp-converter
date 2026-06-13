@@ -5,7 +5,8 @@ use inquire::ui::{Color, RenderConfig, StyleSheet, Styled};
 use std::path::PathBuf;
 use webp_converter::{
     collect_image_files, convert_to_webp, get_downloads_dir, process_batch, show_batch_summary,
-    show_error, show_goodbye, show_info, show_success, ConversionOptions, OperationMode, SKY,
+    show_detailed_log, show_error, show_goodbye, show_info, show_success, ConversionOptions,
+    OperationMode, SKY,
 };
 
 const BANNER_LINES: &[&str] = &[
@@ -90,6 +91,10 @@ struct Args {
     /// Resize only (preserve original format)
     #[arg(long)]
     resize_only: bool,
+
+    /// Verbose output (show details of each converted file)
+    #[arg(long, short)]
+    verbose: bool,
 }
 
 fn main() -> Result<()> {
@@ -113,14 +118,17 @@ fn main() -> Result<()> {
         }
         let result = process_batch(files, &opts);
         show_batch_summary(&result);
+        if args.verbose {
+            show_detailed_log(&result.details);
+        }
         return Ok(());
     }
 
     // Interactive TUI mode
-    run_interactive()
+    run_interactive(args.verbose)
 }
 
-fn run_interactive() -> Result<()> {
+fn run_interactive(verbose: bool) -> Result<()> {
     print_banner();
 
     loop {
@@ -133,7 +141,7 @@ fn run_interactive() -> Result<()> {
 
         match choice {
             Ok("Convert images to WebP") => {
-                if let Err(e) = run_conversion_workflow() {
+                if let Err(e) = run_conversion_workflow(verbose) {
                     show_error(&e.to_string(), "Error");
                 }
             }
@@ -157,7 +165,7 @@ fn run_interactive() -> Result<()> {
     Ok(())
 }
 
-fn run_conversion_workflow() -> Result<()> {
+fn run_conversion_workflow(verbose: bool) -> Result<()> {
     let input_str =
         inquire::Text::new("Enter input path(s) — file or directory (comma-separated):")
             .with_help_message("Press ESC to cancel")
@@ -262,6 +270,17 @@ fn run_conversion_workflow() -> Result<()> {
     } else {
         let result = process_batch(files, &opts);
         show_batch_summary(&result);
+        let show_log = if verbose {
+            true
+        } else {
+            inquire::Confirm::new("Show detailed conversion log?")
+                .with_default(false)
+                .prompt()
+                .unwrap_or(false)
+        };
+        if show_log {
+            show_detailed_log(&result.details);
+        }
     }
 
     Ok(())

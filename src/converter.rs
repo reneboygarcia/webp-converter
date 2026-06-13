@@ -71,11 +71,22 @@ pub enum FileAction {
     Resize,
 }
 
+#[derive(Debug, Clone)]
+pub struct FileConversionResult {
+    pub src: PathBuf,
+    pub dst: PathBuf,
+    pub action: FileAction,
+    pub original_size: u64,
+    pub new_size: u64,
+    pub error: Option<String>,
+}
+
 pub struct BatchResult {
     pub total: usize,
     pub converted: usize,
     pub copied: usize,
     pub failed: Vec<(PathBuf, String)>,
+    pub details: Vec<FileConversionResult>,
 }
 
 static SUPPORTED_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "bmp", "tiff", "tif", "gif", "webp"];
@@ -282,19 +293,28 @@ pub fn process_batch(
     let converted = Arc::new(AtomicUsize::new(0));
     let copied = Arc::new(AtomicUsize::new(0));
 
-    let results: Vec<Option<(PathBuf, String)>> = files
+    let results: Vec<FileConversionResult> = files
         .par_iter()
         .map(|(src, dst, action)| {
+            let orig_size = fs::metadata(src).map(|m| m.len()).unwrap_or(0);
             let result = match action {
                 FileAction::Convert => convert_to_webp_core(src, dst, opts)
-                    .map(|_| ())
+                    .map(|m| m.new_size)
                     .map_err(|e| e.to_string()),
-                FileAction::Copy => fs::copy(src, dst).map(|_| ()).map_err(|e| e.to_string()),
-                FileAction::Resize => resize_image(src, dst).map_err(|e| e.to_string()),
+                FileAction::Copy => fs::copy(src, dst)
+                    .map(|_| orig_size)
+                    .map_err(|e| e.to_string()),
+                FileAction::Resize => resize_image(src, dst)
+                    .and_then(|_| {
+                        fs::metadata(dst)
+                            .map(|m| m.len())
+                            .map_err(ConverterError::from)
+                    })
+                    .map_err(|e| e.to_string()),
             };
             pb.inc(1);
-            match result {
-                Ok(()) => {
+            let (new_size, error) = match result {
+                Ok(size) => {
                     match action {
                         FileAction::Convert => {
                             converted.fetch_add(1, Ordering::Relaxed);
@@ -306,21 +326,35 @@ pub fn process_batch(
                             converted.fetch_add(1, Ordering::Relaxed);
                         }
                     }
-                    None
+                    (size, None)
                 }
-                Err(e) => Some((src.clone(), e)),
+                Err(e) => (0, Some(e)),
+            };
+
+            FileConversionResult {
+                src: src.clone(),
+                dst: dst.clone(),
+                action: *action,
+                original_size: orig_size,
+                new_size,
+                error,
             }
         })
         .collect();
 
     pb.finish_and_clear();
 
-    let failed: Vec<(PathBuf, String)> = results.into_iter().flatten().collect();
+    let failed: Vec<(PathBuf, String)> = results
+        .iter()
+        .filter(|r| r.error.is_some())
+        .map(|r| (r.src.clone(), r.error.as_ref().unwrap().clone()))
+        .collect();
 
     BatchResult {
         total,
         converted: converted.load(Ordering::Relaxed),
         copied: copied.load(Ordering::Relaxed),
         failed,
+        details: results,
     }
 }
