@@ -304,7 +304,24 @@ pub fn show_detailed_log(details: &[FileConversionResult]) {
         };
 
         let line_content = format!("{} {} {}", icon, display_name_styled, info_str);
-        println!("{}", box_line(&line_content, w));
+        let inner = w - 2;
+        let padded = format!(" {} ", line_content);
+        let vis = measure_text_width(&padded);
+        let pad = inner.saturating_sub(vis);
+
+        let border_char = if has_errors {
+            style("│").red()
+        } else {
+            style("│").color256(SKY)
+        };
+
+        println!(
+            "{}{}{}{}",
+            border_char,
+            padded,
+            " ".repeat(pad),
+            border_char
+        );
     }
 
     print_border(box_bottom(w));
