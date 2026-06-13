@@ -9,4 +9,7 @@ pub use converter::{
 };
 pub use paths::get_downloads_dir;
 pub use transform::{process_all_logos, transform_logo, TransformOptions};
-pub use ui::{ask_overwrite, show_batch_summary, show_error, show_goodbye, show_info, show_success, show_warning, SKY};
+pub use ui::{
+    ask_overwrite, show_batch_summary, show_error, show_goodbye, show_info, show_success,
+    show_warning, SKY,
+};

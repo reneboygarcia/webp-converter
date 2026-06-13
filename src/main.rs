@@ -40,7 +40,9 @@ fn print_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
         "  {} {}",
-        style("Fast WebP conversion — Powered by Rust").color256(SKY).dim(),
+        style("Fast WebP conversion — Powered by Rust")
+            .color256(SKY)
+            .dim(),
         style(format!("v{version}")).color256(DIM_GRAY).dim(),
     );
     println!();
