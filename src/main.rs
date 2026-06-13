@@ -3,8 +3,8 @@ use clap::Parser;
 use console::style;
 use std::path::PathBuf;
 use webp_converter::{
-    collect_image_files, convert_to_webp, get_downloads_dir, process_batch, show_error, show_info,
-    show_success, ConversionOptions, OperationMode,
+    collect_image_files, convert_to_webp, get_downloads_dir, process_batch, show_batch_summary,
+    show_error, show_goodbye, show_info, show_success, ConversionOptions, OperationMode,
 };
 
 const BANNER: &str = r#"
@@ -67,15 +67,7 @@ fn main() -> Result<()> {
             return Ok(());
         }
         let result = process_batch(files, &opts);
-        println!(
-            "Done: {} converted, {} copied, {} failed",
-            result.converted,
-            result.copied,
-            result.failed.len()
-        );
-        for (path, err) in &result.failed {
-            show_error(&format!("{}: {}", path.display(), err), "Error");
-        }
+        show_batch_summary(&result);
         return Ok(());
     }
 
@@ -111,7 +103,7 @@ fn run_interactive() -> Result<()> {
                 );
             }
             Ok("Exit") | Err(_) => {
-                println!("\n{}", style("Goodbye!").cyan());
+                show_goodbye();
                 break;
             }
             _ => break,
@@ -229,16 +221,7 @@ fn run_conversion_workflow() -> Result<()> {
         }
     } else {
         let result = process_batch(files, &opts);
-        println!(
-            "\n{}: {} converted, {} copied, {} failed",
-            style("Complete").green(),
-            result.converted,
-            result.copied,
-            result.failed.len()
-        );
-        for (path, err) in &result.failed {
-            show_error(&format!("{}: {}", path.display(), err), "Failed");
-        }
+        show_batch_summary(&result);
     }
 
     Ok(())
