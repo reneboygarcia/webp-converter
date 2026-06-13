@@ -8,13 +8,13 @@ use webp_converter::{
     show_error, show_goodbye, show_info, show_success, ConversionOptions, OperationMode,
 };
 
-// Pure-ASCII banner (toilet -f ascii9 "WEBP CONV") — 63 cols, no Unicode ambiguous chars
 const BANNER_LINES: &[&str] = &[
-    "m     m mmmmmm mmmmm  mmmmm           mmm   mmmm  mm   m m    m",
-    "#  #  # #      #    # #   \"#        m\"   \" m\"  \"m #\"m  # \"m  m\"",
-    "\" #\"# # #mmmmm #mmmm\" #mmm#\"        #      #    # # #m #  #  #",
-    " ## ##\" #      #    # #             #      #    # #  # #  \"mm\"",
-    " #   #  #mmmmm #mmmm\" #              \"mmm\"  #mm#  #   ##   ##",
+    " ██╗    ██╗███████╗██████╗ ██████╗      ██████╗ ██████╗ ███╗   ██╗██╗   ██╗",
+    " ██║    ██║██╔════╝██╔══██╗██╔══██╗    ██╔════╝██╔═══██╗████╗  ██║██║   ██║",
+    " ██║ █╗ ██║█████╗  ██████╔╝██████╔╝    ██║     ██║   ██║██╔██╗ ██║██║   ██║",
+    " ██║███╗██║██╔══╝  ██╔══██╗██╔═══╝     ██║     ██║   ██║██║╚██╗██║╚██╗ ██╔╝",
+    " ╚███╔███╔╝███████╗██████╔╝██║         ╚██████╗╚██████╔╝██║ ╚████║ ╚████╔╝ ",
+    "  ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝          ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝  ╚═══╝ ",
 ];
 
 // Mint teal — matches Python questionary CUSTOM_STYLE
