@@ -39,10 +39,8 @@ fn print_banner() {
     }
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "  {} {}",
-        style("Fast WebP conversion — Powered by Rust")
-            .color256(SKY)
-            .dim(),
+        "  {}  {}",
+        style("Fast WebP conversion").color256(SKY).dim(),
         style(format!("v{version}")).color256(DIM_GRAY).dim(),
     );
     println!();
@@ -143,9 +141,9 @@ fn run_interactive() -> Result<()> {
                 let version = env!("CARGO_PKG_VERSION");
                 show_info(
                     &format!(
-                        "webp-converter v{version}\nRewritten in Rust for speed and efficiency.\nConverts PNG/JPG/BMP/TIFF/GIF to WebP.\nGitHub: github.com/reneboygarcia/webp-converter"
+                        "webp-converter v{version}\nConverts PNG/JPG/BMP/TIFF/GIF to WebP.\nGitHub: github.com/reneboygarcia/webp-converter\n\nTo update:\n  brew upgrade reneboygarcia/homebrew-tap/webp-converter"
                     ),
-                    "About webp-converter",
+                    "About",
                 );
             }
             Ok("Exit") | Err(_) => {
