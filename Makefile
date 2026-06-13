@@ -1,48 +1,58 @@
-# Makefile for webp-converter
-# Usage: make <target>
+.PHONY: help build release install test format lint benchmark sca sbom pre-merge clean
 
-.PHONY: help install test sca sbom pre-merge clean
-
-# Help target to display available commands
 help:
-	@echo "webp-converter Development Makefile"
+	@echo "webp-converter Development Makefile (Rust)"
 	@echo ""
-	@echo "Available targets:"
-	@echo "  install    - Create virtualenv and install dependencies"
-	@echo "  test       - Run all unit tests"
-	@echo "  sca        - Run Trivy vulnerability scan (CRITICAL,HIGH; exit 1 if found)"
-	@echo "  sbom       - Generate CycloneDX SBOM (Trivy) to sbom.cyclonedx.json"
-	@echo "  pre-merge  - Run quality gates: test and sca"
-	@echo "  clean      - Clean build artifacts and temporary files"
-	@echo ""
+	@echo "  build      cargo build (debug)"
+	@echo "  release    cargo build --release"
+	@echo "  install    cargo install --path ."
+	@echo "  test       cargo test"
+	@echo "  format     cargo fmt"
+	@echo "  lint       cargo clippy --all-targets -- -D warnings"
+	@echo "  benchmark  build release binary + run tests/benchmark.py"
+	@echo "  sca        trivy vulnerability scan (CRITICAL,HIGH)"
+	@echo "  sbom       generate CycloneDX SBOM to sbom.cyclonedx.json"
+	@echo "  pre-merge  test + format check + lint + sca"
+	@echo "  clean      remove build artifacts"
+
+build:
+	cargo build
+
+release:
+	cargo build --release
 
 install:
-	python3 -m venv venv
-	./venv/bin/pip install -r requirements.txt
-	./venv/bin/pip install -e .
+	cargo install --path .
 
 test:
-	./venv/bin/python -m unittest discover -s tests
+	cargo test
+
+format:
+	cargo fmt
+
+lint:
+	cargo clippy --all-targets -- -D warnings
+
+benchmark: release
+	@command -v python3 >/dev/null 2>&1 || (echo "python3 required for benchmark" && exit 1)
+	python3 tests/benchmark.py
 
 sca:
-	@echo "🔍 Running Trivy vulnerability scan (CRITICAL,HIGH)..."
-	@if ! command -v trivy >/dev/null 2>&1; then \
-		echo "⚠️  Trivy is not installed. Install it with: brew install trivy"; exit 1; \
-	fi
+	@echo "Running Trivy vulnerability scan..."
+	@command -v trivy >/dev/null 2>&1 || (echo "Install trivy: brew install trivy" && exit 1)
 	trivy fs --scanners vuln --severity CRITICAL,HIGH --exit-code 1 .
 
 sbom:
-	@echo "📋 Generating CycloneDX SBOM..."
-	@if ! command -v trivy >/dev/null 2>&1; then \
-		echo "⚠️  Trivy is not installed. Install it with: brew install trivy"; exit 1; \
-	fi
+	@command -v trivy >/dev/null 2>&1 || (echo "Install trivy: brew install trivy" && exit 1)
 	trivy fs -f cyclonedx -o sbom.cyclonedx.json .
-	@echo "✅ SBOM written to sbom.cyclonedx.json"
+	@echo "SBOM written to sbom.cyclonedx.json"
 
-# When SKIP_SCA=1, skip Trivy (e.g. local Docker/Trivy DB issues).
-pre-merge: test $(if $(SKIP_SCA),,sca)
-	@echo "✅ All pre-merge checks passed!"
+pre-merge: test
+	cargo fmt --all -- --check
+	cargo clippy --all-targets -- -D warnings
+	$(if $(SKIP_SCA),,$(MAKE) sca)
+	@echo "All pre-merge checks passed!"
 
 clean:
-	rm -rf build/ dist/ *.egg-info webp_converter.egg-info
+	cargo clean
 	rm -f sbom.cyclonedx.json
