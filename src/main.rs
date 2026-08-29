@@ -1,13 +1,17 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use console::style;
 use inquire::ui::{Color, RenderConfig, StyleSheet, Styled};
+use std::io;
 use std::path::PathBuf;
 use webp_converter::{
     collect_image_files, convert_to_webp, get_downloads_dir, process_batch, show_batch_summary,
     show_detailed_log, show_error, show_goodbye, show_info, show_success, ConversionOptions,
-    OperationMode, SKY,
+    OperationMode, UpdateChecker, SKY,
 };
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const BANNER_LINES: &[&str] = &[
     "░██╗░░░░░░░██╗███████╗██████╗░██████╗░  ░█████╗░███╗░░██╗██╗░░░██╗████████╗██████╗░",
@@ -17,18 +21,13 @@ const BANNER_LINES: &[&str] = &[
     "░░╚██╔╝░╚██╔╝░███████╗██████╦╝██║░░░░░  ╚█████╔╝██║░╚███║░░╚██╔╝░░░░░██║░░░██║░░██║",
     "░░░╚═╝░░░╚═╝░░╚══════╝╚═════╝░╚═╝░░░░░  ░╚════╝░╚═╝░░╚══╝░░░╚═╝░░░░░░╚═╝░░░╚═╝░░╚═╝",
 ];
-// Char index where the two-space gap splits "WEBP" from "CNVTR"
 const BANNER_SPLIT: usize = 38;
-
-// Dim gray — for banner second half and help text
 const DIM_GRAY: u8 = 243;
-// Amber — for answers / highlights
 const AMBER: u8 = 214;
 
 fn print_banner() {
     println!();
     for line in BANNER_LINES {
-        // Split at BANNER_SPLIT chars: WEBP bold sky, CNVTR dim sky
         let split_byte = line
             .char_indices()
             .nth(BANNER_SPLIT)
@@ -38,11 +37,10 @@ fn print_banner() {
         print!("{}", style(a).bold().color256(SKY));
         println!("{}", style(b).color256(SKY).dim());
     }
-    let version = env!("CARGO_PKG_VERSION");
     println!(
         "  {}  {}",
         style("Fast WebP conversion").color256(SKY).dim(),
-        style(format!("v{version}")).color256(DIM_GRAY).dim(),
+        style(format!("v{VERSION}")).color256(DIM_GRAY).dim(),
     );
     println!();
 }
@@ -61,11 +59,12 @@ fn make_render_config() -> RenderConfig<'static> {
     }
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(
     name = "webp-convert",
     about = "Convert images to WebP format",
-    version
+    version = VERSION,
+    long_about = None
 )]
 struct Args {
     /// Input file or directory (batch mode)
@@ -95,12 +94,266 @@ struct Args {
     /// Verbose output (show details of each converted file)
     #[arg(long, short)]
     verbose: bool,
+
+    /// Check for updates and upgrade webp-converter
+    #[arg(short = 'u', long)]
+    update: bool,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Install webp-converter CLI shortcuts and Homebrew formula
+    Install,
+    /// Check for updates and upgrade webp-converter
+    Update {
+        /// Check for updates without performing upgrade
+        #[arg(long)]
+        check_only: bool,
+    },
+    /// Uninstall or remove webp-converter
+    Uninstall,
+    /// Uninstall or remove webp-converter (alias for uninstall)
+    Delete,
+    /// Generate shell completion scripts (zsh, bash, fish, powershell)
+    Completions {
+        /// Shell to generate completions for (zsh, bash, fish, powershell)
+        shell: String,
+    },
+}
+
+fn handle_update(check_only: bool) -> i32 {
+    println!();
+    println!(
+        " {}",
+        style("🔄 Checking for updates from GitHub...")
+            .bold()
+            .white()
+    );
+
+    let checker = UpdateChecker::new(VERSION);
+    match checker.check_for_update_live() {
+        Ok(Some(latest_version)) => {
+            println!(
+                "\n{} A new version is available! Current: {} -> Latest: {}",
+                style("🔔 Notification:").bold().color256(AMBER),
+                style(format!("v{}", VERSION)).dim(),
+                style(format!("v{}", latest_version)).bold().color256(SKY)
+            );
+
+            if check_only {
+                println!(
+                    "   Run {} to upgrade!",
+                    style("webp-conv update").bold().color256(SKY)
+                );
+                return 2;
+            }
+
+            if UpdateChecker::is_installed_via_homebrew() {
+                println!(
+                    "{}",
+                    style("🚀 Upgrading webp-converter via Homebrew...")
+                        .color256(SKY)
+                        .bold()
+                );
+                match UpdateChecker::perform_brew_upgrade() {
+                    Ok(_) => {
+                        println!(
+                            "{}",
+                            style("✔ Successfully upgraded webp-converter!")
+                                .color256(SKY)
+                                .bold()
+                        );
+                        0
+                    }
+                    Err(e) => {
+                        println!(
+                            "{} Upgrading via Homebrew failed: {}",
+                            style("❌").bold().red(),
+                            e
+                        );
+                        println!(
+                            "   Try running manually: {}",
+                            style("brew update && brew upgrade reneboygarcia/homebrew-tap/webp-converter")
+                                .bold()
+                                .color256(SKY)
+                        );
+                        1
+                    }
+                }
+            } else {
+                println!(
+                    "   To upgrade, run:\n   {}",
+                    style("brew update && brew upgrade reneboygarcia/homebrew-tap/webp-converter")
+                        .bold()
+                        .color256(SKY)
+                );
+                2
+            }
+        }
+        Ok(None) => {
+            println!(
+                "\n{} You are up to date! (Current version: {})",
+                style("✔").bold().color256(SKY),
+                style(format!("v{}", VERSION)).bold()
+            );
+            0
+        }
+        Err(e) => {
+            println!(
+                "\n{} Could not reach GitHub to check for updates: {}",
+                style("⚠️").bold().red(),
+                e
+            );
+            1
+        }
+    }
+}
+
+fn handle_install() -> i32 {
+    println!();
+    println!(
+        " {}",
+        style("📦 Installing / configuring webp-converter...")
+            .bold()
+            .white()
+    );
+
+    if UpdateChecker::is_installed_via_homebrew() {
+        println!(
+            "{}",
+            style("✔ webp-converter is already installed via Homebrew!").color256(SKY)
+        );
+        println!(
+            "   Use {} or {} in terminal.",
+            style("webp-convert").bold().color256(SKY),
+            style("webp-conv").bold().color256(SKY)
+        );
+        return 0;
+    }
+
+    println!(
+        "{}",
+        style("🚀 Triggering Homebrew installation...")
+            .color256(SKY)
+            .bold()
+    );
+    match UpdateChecker::perform_brew_install() {
+        Ok(_) => {
+            println!(
+                "{}",
+                style("✔ Successfully installed webp-converter!")
+                    .color256(SKY)
+                    .bold()
+            );
+            println!(
+                "   Commands available: {} and {}",
+                style("webp-convert").bold().color256(SKY),
+                style("webp-conv").bold().color256(SKY)
+            );
+            0
+        }
+        Err(_) => {
+            println!(
+                "{}",
+                style("ℹ To install via Homebrew manually, run:")
+                    .color256(SKY)
+            );
+            println!(
+                "   {}",
+                style("brew install reneboygarcia/homebrew-tap/webp-converter")
+                    .bold()
+                    .color256(SKY)
+            );
+            0
+        }
+    }
+}
+
+fn handle_uninstall() -> i32 {
+    println!();
+    println!(
+        " {}",
+        style("🗑 Uninstalling webp-converter...")
+            .bold()
+            .white()
+    );
+
+    if UpdateChecker::is_installed_via_homebrew() {
+        match UpdateChecker::perform_brew_uninstall() {
+            Ok(_) => {
+                println!(
+                    "{}",
+                    style("✔ Successfully uninstalled webp-converter via Homebrew!")
+                        .color256(SKY)
+                        .bold()
+                );
+                0
+            }
+            Err(e) => {
+                println!(
+                    "{} Uninstalling via Homebrew failed: {}",
+                    style("❌").bold().red(),
+                    e
+                );
+                1
+            }
+        }
+    } else {
+        println!(
+            "{}",
+            style("ℹ webp-converter was not installed via Homebrew.").color256(SKY)
+        );
+        println!(
+            "   If installed via Cargo, run: {}",
+            style("cargo uninstall webp-converter").bold().color256(SKY)
+        );
+        0
+    }
+}
+
+fn generate_completions(shell_str: &str) -> i32 {
+    let shell = match shell_str.to_lowercase().as_str() {
+        "bash" => Shell::Bash,
+        "zsh" => Shell::Zsh,
+        "fish" => Shell::Fish,
+        "powershell" | "pwsh" => Shell::PowerShell,
+        _ => {
+            eprintln!(
+                "{} Unsupported shell '{}'. Supported: bash, zsh, fish, powershell",
+                style("❌").bold().red(),
+                shell_str
+            );
+            return 1;
+        }
+    };
+
+    let mut cmd = Args::command();
+    generate(shell, &mut cmd, "webp-conv", &mut io::stdout());
+    0
 }
 
 fn main() -> Result<()> {
     inquire::set_global_render_config(make_render_config());
 
     let args = Args::parse();
+
+    if args.update {
+        let code = handle_update(false);
+        std::process::exit(code);
+    }
+
+    if let Some(cmd) = args.command {
+        let code = match cmd {
+            Commands::Install => handle_install(),
+            Commands::Update { check_only } => handle_update(check_only),
+            Commands::Uninstall | Commands::Delete => handle_uninstall(),
+            Commands::Completions { shell } => generate_completions(&shell),
+        };
+        std::process::exit(code);
+    }
 
     // Non-interactive batch mode when --input is supplied
     if let Some(input) = args.input {
@@ -134,7 +387,14 @@ fn run_interactive(verbose: bool) -> Result<()> {
     loop {
         let choice = inquire::Select::new(
             "What would you like to do?",
-            vec!["Convert images to WebP", "Show information", "Exit"],
+            vec![
+                "Convert images to WebP",
+                "Check for updates / Upgrade",
+                "Install CLI / Homebrew setup",
+                "Uninstall / Delete",
+                "Show information",
+                "Exit",
+            ],
         )
         .with_help_message("↑↓ to move, enter to select")
         .prompt();
@@ -145,11 +405,25 @@ fn run_interactive(verbose: bool) -> Result<()> {
                     show_error(&e.to_string(), "Error");
                 }
             }
+            Ok("Check for updates / Upgrade") => {
+                handle_update(false);
+            }
+            Ok("Install CLI / Homebrew setup") => {
+                handle_install();
+            }
+            Ok("Uninstall / Delete") => {
+                let confirm = inquire::Confirm::new("Are you sure you want to uninstall webp-converter?")
+                    .with_default(false)
+                    .prompt()
+                    .unwrap_or(false);
+                if confirm {
+                    handle_uninstall();
+                }
+            }
             Ok("Show information") => {
-                let version = env!("CARGO_PKG_VERSION");
                 show_info(
                     &format!(
-                        "webp-converter v{version}\nConverts PNG/JPG/BMP/TIFF/GIF to WebP.\nGitHub: github.com/reneboygarcia/webp-converter\n\nTo update:\n  brew upgrade reneboygarcia/homebrew-tap/webp-converter"
+                        "webp-converter v{VERSION}\nConverts PNG/JPG/BMP/TIFF/GIF to WebP.\nGitHub: github.com/reneboygarcia/webp-converter\n\nCommands:\n  webp-conv install   Install / configure CLI\n  webp-conv update    Check & upgrade to latest version\n  webp-conv delete    Uninstall webp-converter"
                     ),
                     "About",
                 );

@@ -2,6 +2,7 @@ pub mod converter;
 pub mod paths;
 pub mod transform;
 pub mod ui;
+pub mod update_checker;
 
 pub use converter::{
     collect_image_files, convert_to_webp, convert_to_webp_core, process_batch, resize_image,
@@ -14,3 +15,4 @@ pub use ui::{
     ask_overwrite, show_batch_summary, show_detailed_log, show_error, show_goodbye, show_info,
     show_success, show_warning, SKY,
 };
+pub use update_checker::UpdateChecker;
