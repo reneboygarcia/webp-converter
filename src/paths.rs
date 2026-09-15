@@ -89,7 +89,10 @@ fn unescape_path(s: &str) -> String {
 fn is_escapable_char(ch: char) -> bool {
     #[cfg(windows)]
     {
-        matches!(ch, ' ' | '\'' | '"' | '(' | ')' | '[' | ']' | '{' | '}' | '\\')
+        matches!(
+            ch,
+            ' ' | '\'' | '"' | '(' | ')' | '[' | ']' | '{' | '}' | '\\'
+        )
     }
     #[cfg(not(windows))]
     {
@@ -167,10 +170,12 @@ pub fn parse_input_paths(input: &str) -> Vec<PathBuf> {
     // 4. Fallback: If tokenizing yielded non-existent paths, but single_cleaned could be a single path with spaces:
     if paths.is_empty() && !single_cleaned.as_os_str().is_empty() {
         paths.push(single_cleaned);
-    } else if !paths.is_empty() && !has_explicit_delimiters(trimmed) {
-        if !paths.iter().any(|p| p.exists()) && !single_cleaned.as_os_str().is_empty() {
-            return vec![single_cleaned];
-        }
+    } else if !paths.is_empty()
+        && !has_explicit_delimiters(trimmed)
+        && !paths.iter().any(|p| p.exists())
+        && !single_cleaned.as_os_str().is_empty()
+    {
+        return vec![single_cleaned];
     }
 
     paths

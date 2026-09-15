@@ -258,8 +258,7 @@ fn handle_install() -> i32 {
         Err(_) => {
             println!(
                 "{}",
-                style("ℹ To install via Homebrew manually, run:")
-                    .color256(SKY)
+                style("ℹ To install via Homebrew manually, run:").color256(SKY)
             );
             println!(
                 "   {}",
@@ -276,9 +275,7 @@ fn handle_uninstall() -> i32 {
     println!();
     println!(
         " {}",
-        style("🗑 Uninstalling webp-converter...")
-            .bold()
-            .white()
+        style("🗑 Uninstalling webp-converter...").bold().white()
     );
 
     if UpdateChecker::is_installed_via_homebrew() {
@@ -416,10 +413,11 @@ fn run_interactive(verbose: bool) -> Result<()> {
                 handle_install();
             }
             Ok("Uninstall / Delete") => {
-                let confirm = inquire::Confirm::new("Are you sure you want to uninstall webp-converter?")
-                    .with_default(false)
-                    .prompt()
-                    .unwrap_or(false);
+                let confirm =
+                    inquire::Confirm::new("Are you sure you want to uninstall webp-converter?")
+                        .with_default(false)
+                        .prompt()
+                        .unwrap_or(false);
                 if confirm {
                     handle_uninstall();
                 }

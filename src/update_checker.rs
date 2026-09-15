@@ -136,7 +136,10 @@ impl UpdateChecker {
             .timeout(std::time::Duration::from_millis(1500))
             .build();
 
-        let response = agent.get(url).set("User-Agent", "webp-converter-cli").call();
+        let response = agent
+            .get(url)
+            .set("User-Agent", "webp-converter-cli")
+            .call();
 
         if let Ok(res) = response {
             if res.status() == 200 {
