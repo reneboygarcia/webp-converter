@@ -6,9 +6,9 @@ use inquire::ui::{Color, RenderConfig, StyleSheet, Styled};
 use std::io;
 use std::path::PathBuf;
 use webp_converter::{
-    collect_image_files, convert_to_webp, get_downloads_dir, process_batch, show_batch_summary,
-    show_detailed_log, show_error, show_goodbye, show_info, show_success, ConversionOptions,
-    OperationMode, UpdateChecker, SKY,
+    clean_path, collect_image_files, convert_to_webp, get_downloads_dir, parse_input_paths,
+    process_batch, show_batch_summary, show_detailed_log, show_error, show_goodbye, show_info,
+    show_success, ConversionOptions, OperationMode, UpdateChecker, SKY,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -357,14 +357,18 @@ fn main() -> Result<()> {
 
     // Non-interactive batch mode when --input is supplied
     if let Some(input) = args.input {
-        let output_dir = args.output.unwrap_or_else(get_downloads_dir);
+        let output_dir = args
+            .output
+            .map(|o| clean_path(&o.to_string_lossy()))
+            .unwrap_or_else(get_downloads_dir);
         let opts = ConversionOptions::new(args.quality, args.lossless, args.force)?;
         let mode = if args.resize_only {
             OperationMode::ResizeOnly
         } else {
             OperationMode::ConvertToWebP
         };
-        let files = collect_image_files(&[input], &output_dir, mode);
+        let inputs = parse_input_paths(&input.to_string_lossy());
+        let files = collect_image_files(&inputs, &output_dir, mode);
         if files.is_empty() {
             show_info("No supported image files found.", "Info");
             return Ok(());
@@ -445,11 +449,7 @@ fn run_conversion_workflow(verbose: bool) -> Result<()> {
             .with_help_message("Press ESC to cancel")
             .prompt()?;
 
-    let inputs: Vec<PathBuf> = input_str
-        .split(',')
-        .map(|s| PathBuf::from(s.trim()))
-        .filter(|p| !p.as_os_str().is_empty())
-        .collect();
+    let inputs = parse_input_paths(&input_str);
 
     if inputs.is_empty() {
         show_error("No input paths provided.", "Error");
@@ -468,7 +468,7 @@ fn run_conversion_workflow(verbose: bool) -> Result<()> {
     let output_str = inquire::Text::new("Output directory:")
         .with_default(&default_out)
         .prompt()?;
-    let output_dir = PathBuf::from(output_str.trim());
+    let output_dir = clean_path(&output_str);
 
     let mode_str = inquire::Select::new(
         "Operation mode:",

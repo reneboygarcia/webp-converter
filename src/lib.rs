@@ -9,7 +9,7 @@ pub use converter::{
     BatchResult, ConversionMetrics, ConversionOptions, ConverterError, FileAction,
     FileConversionResult, OperationMode,
 };
-pub use paths::get_downloads_dir;
+pub use paths::{clean_path, get_downloads_dir, parse_input_paths};
 pub use transform::{process_all_logos, transform_logo, TransformOptions};
 pub use ui::{
     ask_overwrite, show_batch_summary, show_detailed_log, show_error, show_goodbye, show_info,
