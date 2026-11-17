@@ -25,7 +25,7 @@ image         = { version = "0.25", features = ["png", "jpeg", "bmp", "tiff", "g
 webp          = "0.3"
 rayon         = "1.10"
 walkdir       = "2.5"
-thiserror     = "1.0"
+thiserror     = "2.0"
 anyhow        = "1.0"
 ureq          = { version = "2.10", features = ["json"] }
 serde         = { version = "1.0", features = ["derive"] }
