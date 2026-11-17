@@ -20,7 +20,7 @@ clap_complete = "4.5"
 inquire       = "0.7"
 indicatif     = "0.17"
 console       = "0.15"
-dirs          = "5.0"
+dirs          = "7.0"
 image         = { version = "0.25", features = ["png", "jpeg", "bmp", "tiff", "gif"] }
 webp          = "0.3"
 rayon         = "1.10"
