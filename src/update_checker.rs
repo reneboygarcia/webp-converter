@@ -130,29 +130,29 @@ impl UpdateChecker {
     }
 
     fn fetch_latest_version_from_github(&self) -> Option<String> {
+        #[derive(Deserialize)]
+        struct GithubRelease {
+            tag_name: String,
+        }
+
         let url = "https://api.github.com/repos/reneboygarcia/webp-converter/releases/latest";
 
-        let agent = ureq::AgentBuilder::new()
-            .timeout(std::time::Duration::from_millis(1500))
-            .build();
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_millis(1500)))
+            .proxy(None)
+            .build()
+            .into();
 
-        let response = agent
+        let release: GithubRelease = agent
             .get(url)
-            .set("User-Agent", "webp-converter-cli")
-            .call();
+            .header("User-Agent", "webp-converter-cli")
+            .call()
+            .ok()?
+            .into_body()
+            .read_json()
+            .ok()?;
 
-        if let Ok(res) = response {
-            if res.status() == 200 {
-                #[derive(Deserialize)]
-                struct GithubRelease {
-                    tag_name: String,
-                }
-                if let Ok(release) = res.into_json::<GithubRelease>() {
-                    return Some(release.tag_name.trim_start_matches('v').to_string());
-                }
-            }
-        }
-        None
+        Some(release.tag_name.trim_start_matches('v').to_string())
     }
 
     pub fn is_installed_via_homebrew() -> bool {
